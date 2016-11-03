@@ -24,6 +24,7 @@ END SCOMP;
 
 ARCHITECTURE a OF SCOMP IS
 	TYPE STATE_TYPE IS (
+
 		RESET_PC,
 		FETCH,
 		DECODE,
@@ -49,7 +50,16 @@ ARCHITECTURE a OF SCOMP IS
 		EX_OUT,
 		EX_OUT2,
 		EX_LOADI,
-		EX_RETI
+		EX_RETI,
+
+		EX_MOVR,
+		EX_ADDR,
+		EX_SUBR,
+		EX_ADDIR,
+
+		EX_CMP,
+		EX_LT,
+		EX_GT
 	);
 
 	TYPE STACK_TYPE IS ARRAY (0 TO 9) OF STD_LOGIC_VECTOR(10 DOWNTO 0);
@@ -82,6 +92,9 @@ ARCHITECTURE a OF SCOMP IS
 	signal registerFile_readAddrB 	: 	std_logic_vector(3 downto 0);
 	signal registerFile_writeAddr 	: 	std_logic_vector(3 downto 0);
 
+	signal registerFile_inReg 		: 	std_logic_vector(15 downto 0);
+	signal registerFile_outRegA 	: 	std_logic_vector(15 downto 0);
+	signal registerFile_outRegB	 	: 	std_logic_vector(15 downto 0);
 
 
 
@@ -283,6 +296,41 @@ BEGIN
 							STATE <= EX_RETI;
 						WHEN "10111" =>       -- LOADI
 							STATE <= EX_LOADI;
+
+
+						-- 
+						-- Register-to-Register Operations
+						--
+						-- Harrison
+
+						WHEN "11000" =>
+							STATE <= EX_MOVR;
+
+						WHEN "11001" =>
+							STATE <= EX_SUBR;
+
+						WHEN "11010" =>
+							STATE <= EX_ADDIR;
+
+						WHEN "11011" =>
+							STATE <= EX_ANDR;
+
+						WHEN "11100" => 
+							STATE <= EX_ORR;
+
+
+						-- Comparisons
+						--
+
+						WHEN "11101" =>
+							STATE <= EX_CMP;
+
+						WHEN "11110" =>
+							STATE <= EX_LT;
+
+						WHEN "11111" =>
+							STATE <= EX_GT;
+
 
 						WHEN OTHERS =>
 							STATE <= FETCH;      -- Invalid opcodes default to NOP
