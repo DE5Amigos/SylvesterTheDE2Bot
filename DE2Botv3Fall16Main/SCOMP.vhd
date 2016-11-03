@@ -57,6 +57,9 @@ ARCHITECTURE a OF SCOMP IS
 		EX_SUBR,
 		EX_ADDIR,
 
+		EX_ANDR,
+		EX_ORR,
+
 		EX_CMP,
 		EX_LT,
 		EX_GT
@@ -78,7 +81,7 @@ ARCHITECTURE a OF SCOMP IS
 	SIGNAL MW           : STD_LOGIC;
 	SIGNAL IO_WRITE_INT : STD_LOGIC;
 	SIGNAL GIE          : STD_LOGIC;
-	SIGNAL IIE      : STD_LOGIC_VECTOR( 3 DOWNTO 0);
+	SIGNAL IIE      	: STD_LOGIC_VECTOR( 3 DOWNTO 0);
 	SIGNAL INT_REQ      : STD_LOGIC_VECTOR( 3 DOWNTO 0);
 	SIGNAL INT_REQ_SYNC : STD_LOGIC_VECTOR( 3 DOWNTO 0); -- registered version of INT_REQ
 	SIGNAL INT_ACK      : STD_LOGIC_VECTOR( 3 DOWNTO 0);
@@ -86,15 +89,13 @@ ARCHITECTURE a OF SCOMP IS
 
 
 	-- Register File Signals
-	signal registerFile_readWrite 	: 	std_logic;
+	signal registerFile_writeEnable : 	std_logic;
 
 	signal registerFile_readAddrA 	: 	std_logic_vector(3 downto 0);
-	signal registerFile_readAddrB 	: 	std_logic_vector(3 downto 0);
 	signal registerFile_writeAddr 	: 	std_logic_vector(3 downto 0);
 
 	signal registerFile_inReg 		: 	std_logic_vector(15 downto 0);
-	signal registerFile_outRegA 	: 	std_logic_vector(15 downto 0);
-	signal registerFile_outRegB	 	: 	std_logic_vector(15 downto 0);
+	signal registerFile_outReg 		: 	std_logic_vector(15 downto 0);
 
 
 
@@ -155,29 +156,17 @@ BEGIN
 
 	REGISTERS: RegisterFile
 	port map(
-		clock 	=> CLOCK,
-		resetn 	=> RESETN,
-		readWrite 	=> 	registerFile_readWrite,
-		readAddrA 	=> 	registerFile_readAddrA,
-		readAddrB 	=> 	registerFile_readAddrB,
-		writeAddr 	=> 	registerFile_writeAddr,
 
-		inReg 		=> ,
-		outRegA 	=> ,
-		outRegB 	=> 
+		clock 		=> CLOCK,
+		resetn 		=> RESETN,
+		writeEnable => registerFile_writeEnable,
+		readAddrA 	=> registerFile_readAddrA,
+		readAddrB 	=> registerFile_readAddrB
+		writeAddr 	=> registerFile_writeAddr,
 
-
-		-- Read/Write addresses.
-		readAddrA	: in 	std_logic_vector(3 downto 0);
-		readAddrB	: in 	std_logic_vector(3 downto 0);
-		writeAddr 	: in 	std_logic_vector(3 downto 0);
-
-		-- In register is the data that we want to write to some given register.
-		inReg 		: in 	std_logic_vector(16 downto 0);
-		
-		-- Get two registers' contents.
-		outRegA 	: out 	std_logic_vector(16 downto 0);
-		outRegB 	: out 	std_logic_vector(16 downto 0)
+		inReg 		=> registerFile_inReg,
+		outRegA 	=> registerFile_outRegA
+		outRegB 	=> registerFile_outRegB
 	);
 
 
@@ -195,6 +184,12 @@ BEGIN
 		'0' WHEN OTHERS;
 
 	IO_WRITE <= IO_WRITE_INT;
+
+
+	-- Update the read address no matter what state we are in.
+	registerFile_readAddrA <= IR(9 downto 5);
+	registerFile_readAddrB <= IR(4 downto 0);
+
 
 	PROCESS (CLOCK, RESETN)
 	BEGIN
@@ -336,6 +331,10 @@ BEGIN
 							STATE <= FETCH;      -- Invalid opcodes default to NOP
 					END CASE;
 
+
+
+
+
 				WHEN EX_LOAD =>
 					AC    <= MDR;            -- Latch data from MDR (memory contents) to AC
 					STATE <= FETCH;
@@ -448,6 +447,144 @@ BEGIN
 					PC    <= PC_SAVED; -- restore saved registers
 					AC    <= AC_SAVED;
 					STATE <= FETCH;
+
+
+				--
+				-- Register-to-Register Operations
+				--
+
+				WHEN EX_MOVR =>
+
+					-- Reading of the register is already done.
+					
+					if (IR(9 downto 5) /= "0000") then
+
+						-- If the destination register is 0000 (ie the AC) then we DONT
+						-- want to enable the write signal since there is no 0-th register in the register
+						-- file.
+
+						-- Note to self: If this doesnt work. We can always write junk to the 0-th
+						-- register in the register file, and then explicitly write to AC when 
+						-- we need to.
+
+						-- Set the writeEnable line high to initiate a write operation.
+						registerFile_writeEnable <= '1';
+
+					end if;
+
+
+					STATE <= EX_MOVR2;
+
+
+				WHEN EX_MOVR2 =>
+
+					-- If the top 5 bits of the IR are 0, then we want to write to the AC.
+					-- 
+
+					if( IR(9 downto 0) = "0000") then
+
+						AC <= outRegA;
+
+					end if;
+
+					-- Set writeEnable low no matter what.
+					registerFile_writeEnable <= '0';
+
+					STATE <= FETCH;
+
+
+
+
+
+
+				WHEN EX_ADDR =>
+
+					-- The reading is already done.
+
+					AC <= registerFile_outRegA + registerFile_outRegB;
+
+					STATE <= FETCH;
+
+
+
+
+				WHEN EX_SUBR =>
+
+					AC 		<= registerFile_outRegA - registerFile_outRegB;
+					STATE 	<= FETCH;
+
+				
+				-- ADDIR
+				-- Add Immediate Register 
+				-- 
+				-- Treat the bits in IR(4 downto 0) as an immediate value.
+				--
+
+				WHEN EX_ADDIR =>
+
+					AC  <= registerFile_outRegA + (IR(4) & IR(4) & IR(4) & IR(4) & IR(4) & IR(4) & 
+							IR(4) & IR(4) & IR(4) & IR(4) & IR(4) & IR(4 DOWNTO 0));
+
+					STATE <= FETCH;
+
+				WHEN EX_ANDR =>
+
+					AC <= registerFile_outRegA and registerFile_outRegB;
+
+					STATE <= FETCH;
+
+				WHEN EX_ORR =>
+
+					AC <= registerFile_outRegA or registerFile_outRegB;
+
+					STATE <= FETCH;
+
+
+				WHEN EX_CMP =>
+
+					if(registerFile_outRegA = registerFile_outRegB) then
+
+						AC <= "0000000000000001";
+
+					else 
+
+						AC <= "0000000000000000";
+
+					end if;
+
+					STATE <= FETCH;
+
+
+				WHEN EX_LT =>
+
+					if( registerFile_outRegA < registerFile_outRegB ) then
+
+						AC <= "0000000000000001";
+
+					else 
+
+						AC <= "0000000000000000";
+
+					end if;
+
+					STATE <= FETCH;
+
+
+				WHEN EX_GT =>
+
+					if( registerFile_outRegA > registerFile_outRegB ) then
+
+						AC <= "0000000000000001";
+
+					else 
+
+						AC <= "0000000000000000";
+
+					end if;
+
+					STATE <= FETCH;
+
+
 
 				WHEN OTHERS =>
 					STATE <= FETCH;          -- If an invalid state is reached, return to FETCH

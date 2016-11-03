@@ -36,7 +36,7 @@ entity RegisterFile is
 		inReg 		: in 	std_logic_vector(15 downto 0);
 		
 		-- Get two registers' contents.
-		outRegA 	: out 	std_logic_vector(15 downto 0);
+		outRegA 	: out 	std_logic_vector(15 downto 0)
 		outRegB 	: out 	std_logic_vector(15 downto 0)
 
 	);
@@ -53,10 +53,7 @@ begin
 	-- An array that holds the contents of the registers.
 	--
 
-	-- Note: We want "... array(1 to 31) ... " because our 0-th register is the AC which is local
-	-- to SCOMP.
-
-	type register_file is array(1 to 31) of std_logic_vector(15 downto 0);
+	type register_file is array(0 to 31) of std_logic_vector(15 downto 0);
 
 	signal registers : register_file;
 
@@ -68,7 +65,7 @@ begin
 		if (resetn = '0') then
 
 			-- Set all of the registers in the register file to 0.
-
+			-- registers <= x"0000";
 
 		-- On the rising edge of the clock, we want to write the data into, and read the data
 		-- from the register file, and "return" it to the "caller" for use.
