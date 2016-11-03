@@ -75,6 +75,19 @@ ARCHITECTURE a OF SCOMP IS
 	SIGNAL IN_HOLD      : STD_LOGIC;
 
 
+	-- Register File Signals
+	signal registerFile_readWrite 	: 	std_logic;
+
+	signal registerFile_readAddrA 	: 	std_logic_vector(3 downto 0);
+	signal registerFile_readAddrB 	: 	std_logic_vector(3 downto 0);
+	signal registerFile_writeAddr 	: 	std_logic_vector(3 downto 0);
+
+
+
+
+
+
+
 BEGIN
 	-- Use altsyncram component for unified program and data memory
 	MEMORY : altsyncram
@@ -125,6 +138,36 @@ BEGIN
 		enabledt => IO_WRITE_INT,
 		tridata  => IO_DATA
 	);
+
+
+	REGISTERS: RegisterFile
+	port map(
+		clock 	=> CLOCK,
+		resetn 	=> RESETN,
+		readWrite 	=> 	registerFile_readWrite,
+		readAddrA 	=> 	registerFile_readAddrA,
+		readAddrB 	=> 	registerFile_readAddrB,
+		writeAddr 	=> 	registerFile_writeAddr,
+
+		inReg 		=> ,
+		outRegA 	=> ,
+		outRegB 	=> 
+
+
+		-- Read/Write addresses.
+		readAddrA	: in 	std_logic_vector(3 downto 0);
+		readAddrB	: in 	std_logic_vector(3 downto 0);
+		writeAddr 	: in 	std_logic_vector(3 downto 0);
+
+		-- In register is the data that we want to write to some given register.
+		inReg 		: in 	std_logic_vector(16 downto 0);
+		
+		-- Get two registers' contents.
+		outRegA 	: out 	std_logic_vector(16 downto 0);
+		outRegB 	: out 	std_logic_vector(16 downto 0)
+	);
+
+
 
 
 	IO_ADDR  <= IR(7 DOWNTO 0);
