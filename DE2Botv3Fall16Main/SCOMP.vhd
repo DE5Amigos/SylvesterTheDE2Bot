@@ -8,21 +8,24 @@ USE IEEE.STD_LOGIC_UNSIGNED.ALL;
 USE ALTERA_MF.ALTERA_MF_COMPONENTS.ALL;
 USE LPM.LPM_COMPONENTS.ALL;
 
+use ieee.numeric_std.all;
+
 
 ENTITY SCOMP IS
-	PORT(
-		CLOCK    : IN    STD_LOGIC;
-		RESETN   : IN    STD_LOGIC;
-		PCINT    : IN    STD_LOGIC_VECTOR( 3 DOWNTO 0);
-		IO_WRITE : OUT   STD_LOGIC;
-		IO_CYCLE : OUT   STD_LOGIC;
-		IO_ADDR  : OUT   STD_LOGIC_VECTOR( 7 DOWNTO 0);
-		IO_DATA  : INOUT STD_LOGIC_VECTOR(15 DOWNTO 0)
-	);
+  PORT(
+    CLOCK    : IN    STD_LOGIC;
+	RESETN   : IN    STD_LOGIC;
+	PCINT    : IN    STD_LOGIC_VECTOR( 3 DOWNTO 0);
+	IO_WRITE : OUT   STD_LOGIC;
+	IO_CYCLE : OUT   STD_LOGIC;
+	IO_ADDR  : OUT   STD_LOGIC_VECTOR( 7 DOWNTO 0);
+	IO_DATA  : INOUT STD_LOGIC_VECTOR(15 DOWNTO 0)
+  );
 END SCOMP;
 
 
 ARCHITECTURE a OF SCOMP IS
+  
 	TYPE STATE_TYPE IS (
 
 		RESET_PC,
@@ -51,11 +54,10 @@ ARCHITECTURE a OF SCOMP IS
 		EX_OUT2,
 		EX_LOADI,
 		EX_RETI,
-
+		
 		EX_MOVR,
 		EX_ADDR,
 		EX_SUBR,
-		EX_ADDIR,
 
 		EX_ANDR,
 		EX_ORR,
@@ -64,9 +66,16 @@ ARCHITECTURE a OF SCOMP IS
 		EX_LT,
 		EX_GT
 	);
-
+	
+	
 	TYPE STACK_TYPE IS ARRAY (0 TO 9) OF STD_LOGIC_VECTOR(10 DOWNTO 0);
-
+	
+	type HSREGISTER_FILE is array (0 to 31) of std_logic_vector(15 downto 0);
+	
+	
+	
+	SIGNAL regFile 		: HSREGISTER_FILE;
+	
 	SIGNAL STATE        : STATE_TYPE;
 	SIGNAL PC_STACK     : STACK_TYPE;
 	SIGNAL IO_IN        : STD_LOGIC_VECTOR(15 DOWNTO 0);
@@ -86,24 +95,15 @@ ARCHITECTURE a OF SCOMP IS
 	SIGNAL INT_REQ_SYNC : STD_LOGIC_VECTOR( 3 DOWNTO 0); -- registered version of INT_REQ
 	SIGNAL INT_ACK      : STD_LOGIC_VECTOR( 3 DOWNTO 0);
 	SIGNAL IN_HOLD      : STD_LOGIC;
+	
+	
+	
+	
 
 
-	-- Register File Signals
-	signal registerFile_writeEnable : 	std_logic;
-
-	signal registerFile_readAddrA 	: 	std_logic_vector(3 downto 0);
-	signal registerFile_writeAddr 	: 	std_logic_vector(3 downto 0);
-
-	signal registerFile_inReg 		: 	std_logic_vector(15 downto 0);
-	signal registerFile_outReg 		: 	std_logic_vector(15 downto 0);
-
-
-
-
-
-
-BEGIN
-	-- Use altsyncram component for unified program and data memory
+  BEGIN
+  
+    -- Use altsyncram component for unified program and data memory
 	MEMORY : altsyncram
 	GENERIC MAP (
 		intended_device_family => "Cyclone",
@@ -116,7 +116,7 @@ BEGIN
 		wrcontrol_aclr_a => "NONE",
 		address_aclr_a   => "NONE",
 		outdata_aclr_a   => "NONE",
-		init_file        => "SimpleRobotProgram.mif",
+		init_file        => "misctest.mif",
 		lpm_hint         => "ENABLE_RUNTIME_MOD=NO",
 		lpm_type         => "altsyncram"
 	)
@@ -127,7 +127,8 @@ BEGIN
 		data_a    => AC,
 		q_a       => MDR
 	);
-
+	
+	
 	-- Use LPM function to shift AC using the SHIFT instruction
 	SHIFTER: LPM_CLSHIFT
 	GENERIC MAP (
@@ -141,7 +142,8 @@ BEGIN
 		direction => IR(4),
 		result    => AC_SHIFTED
 	);
-
+	
+	
 	-- Use LPM function to drive I/O bus
 	IO_BUS: LPM_BUSTRI
 	GENERIC MAP (
@@ -152,32 +154,17 @@ BEGIN
 		enabledt => IO_WRITE_INT,
 		tridata  => IO_DATA
 	);
-
-
-	REGISTERS: RegisterFile
-	port map(
-
-		clock 		=> CLOCK,
-		resetn 		=> RESETN,
-		writeEnable => registerFile_writeEnable,
-		readAddrA 	=> registerFile_readAddrA,
-		readAddrB 	=> registerFile_readAddrB
-		writeAddr 	=> registerFile_writeAddr,
-
-		inReg 		=> registerFile_inReg,
-		outRegA 	=> registerFile_outRegA
-		outRegB 	=> registerFile_outRegB
-	);
-
-
-
-
-	IO_ADDR  <= IR(7 DOWNTO 0);
-
+	
+	
+	
+    IO_ADDR  <= IR(7 DOWNTO 0);
+	
+	
 	WITH STATE SELECT MEM_ADDR <=
 		PC WHEN FETCH,
 		IR(10 DOWNTO 0) WHEN OTHERS;
-
+	
+	
 	WITH STATE SELECT IO_CYCLE <=
 		'1' WHEN EX_IN,
 		'1' WHEN EX_OUT2,
@@ -186,32 +173,44 @@ BEGIN
 	IO_WRITE <= IO_WRITE_INT;
 
 
-	-- Update the read address no matter what state we are in.
-	registerFile_readAddrA <= IR(9 downto 5);
-	registerFile_readAddrB <= IR(4 downto 0);
-
-
-	PROCESS (CLOCK, RESETN)
-	BEGIN
-		IF (RESETN = '0') THEN          -- Active low, asynchronous reset
+    PROCESS (CLOCK, RESETN)
+      
+      
+      variable regFileDest 		: integer range 0 to 31;
+      variable regFileSource 	: integer range 0 to 31;
+      
+      BEGIN
+        
+        IF (RESETN = '0') THEN          -- Active low, asynchronous reset
+			
 			STATE <= RESET_PC;
+			
 		ELSIF (RISING_EDGE(CLOCK)) THEN
+		
 			CASE STATE IS
+			
 				WHEN RESET_PC =>
-					MW        <= '0';          -- Clear memory write flag
-					PC        <= "00000000000"; -- Reset PC to the beginning of memory, address 0x000
-					AC        <= x"0000";      -- Clear AC register
-					IO_WRITE_INT <= '0';
-					GIE       <= '1';          -- Enable interrupts
-					IIE       <= "0000";       -- Mask all interrupts
-					STATE     <= FETCH;
-					IN_HOLD   <= '0';
-					INT_REQ_SYNC <= "0000";
+					MW        		<= '0';          -- Clear memory write flag
+					PC        		<= "00000000000"; -- Reset PC to the beginning of memory, address 0x000
+					AC        		<= x"0000";      -- Clear AC register
+					IO_WRITE_INT 	<= '0';
+					GIE       		<= '1';          -- Enable interrupts
+					IIE       		<= "0000";       -- Mask all interrupts
+					STATE     		<= FETCH;
+					IN_HOLD   		<= '0';
+					INT_REQ_SYNC 	<= "0000";
 
 				WHEN FETCH =>
-					MW    <= '0';       -- Clear memory write flag
-					IR    <= MDR;       -- Latch instruction into the IR
-					IO_WRITE_INT <= '0';       -- Lower IO_WRITE after an OUT
+				
+					MW    			<= '0';       -- Clear memory write flag
+					IR    			<= MDR;       -- Latch instruction into the IR
+					IO_WRITE_INT 	<= '0';       -- Lower IO_WRITE after an OUT
+					
+					
+					
+					
+					
+					
 					-- Interrupt Control
 					IF (GIE = '1') AND  -- If Global Interrupt Enable set and...
 					  (INT_REQ_SYNC /= "0000") THEN -- ...an interrupt is pending
@@ -237,60 +236,51 @@ BEGIN
 						STATE     <= DECODE;
 						INT_ACK   <= "0000";   -- Clear any interrupt acknowledge
 					END IF;
-
+	
+	
+	
 				WHEN DECODE =>
+					
+					-- Write to the register variables.
+					regFileDest 	:= ieee.numeric_std.to_integer(ieee.numeric_std.unsigned(IR(9 downto 5)));
+					regFileSource 	:= ieee.numeric_std.to_integer(ieee.numeric_std.unsigned(IR(4 downto 0)));
+					
 					CASE IR(15 downto 11) IS
-						WHEN "00000" =>       -- No Operation (NOP)
-							STATE <= FETCH;
-						WHEN "00001" =>       -- LOAD
-							STATE <= EX_LOAD;
-						WHEN "00010" =>       -- STORE
-							STATE <= EX_STORE;
-						WHEN "00011" =>       -- ADD
-							STATE <= EX_ADD;
-						WHEN "00100" =>       -- SUB
-							STATE <= EX_SUB;
-						WHEN "00101" =>       -- JUMP
-							STATE <= EX_JUMP;
-						WHEN "00110" =>       -- JNEG
-							STATE <= EX_JNEG;
-						WHEN "00111" =>       -- JPOS
-							STATE <= EX_JPOS;
-						WHEN "01000" =>       -- JZERO
-							STATE <= EX_JZERO;
-						WHEN "01001" =>       -- AND
-							STATE <= EX_AND;
-						WHEN "01010" =>       -- OR
-							STATE <= EX_OR;
-						WHEN "01011" =>       -- XOR
-							STATE <= EX_XOR;
-						WHEN "01100" =>       -- SHIFT
-							STATE <= EX_SHIFT;
-						WHEN "01101" =>       -- ADDI
-							STATE <= EX_ADDI;
-						WHEN "01110" =>       -- ILOAD
-							STATE <= EX_ILOAD;
-						WHEN "01111" =>       -- ISTORE
-							STATE <= EX_ISTORE;
-						WHEN "10000" =>       -- CALL
-							STATE <= EX_CALL;
-						WHEN "10001" =>       -- RETURN
-							STATE <= EX_RETURN;
-						WHEN "10010" =>       -- IN
-							STATE <= EX_IN;
+					
+						WHEN "00000" => 	STATE <= FETCH;
+						WHEN "00001" =>     STATE <= EX_LOAD;
+						WHEN "00010" =>     STATE <= EX_STORE;
+						WHEN "00011" =>     STATE <= EX_ADD;
+						WHEN "00100" =>     STATE <= EX_SUB;
+						WHEN "00101" =>     STATE <= EX_JUMP;
+						WHEN "00110" =>     STATE <= EX_JNEG;
+						WHEN "00111" =>     STATE <= EX_JPOS;
+						WHEN "01000" =>     STATE <= EX_JZERO;
+						WHEN "01001" =>     STATE <= EX_AND;
+						WHEN "01010" =>     STATE <= EX_OR;
+						WHEN "01011" =>     STATE <= EX_XOR;
+						WHEN "01100" =>     STATE <= EX_SHIFT;
+						WHEN "01101" =>     STATE <= EX_ADDI;
+						WHEN "01110" =>     STATE <= EX_ILOAD;
+						WHEN "01111" =>     STATE <= EX_ISTORE;
+						WHEN "10000" =>     STATE <= EX_CALL;
+						WHEN "10001" =>     STATE <= EX_RETURN;
+						WHEN "10010" =>     STATE <= EX_IN;
+						
 						WHEN "10011" =>       -- OUT
 							STATE <= EX_OUT;
 							IO_WRITE_INT <= '1'; -- raise IO_WRITE
+							
 						WHEN "10100" =>       -- CLI
 							IIE <= IIE AND NOT(IR(3 DOWNTO 0));  -- disable indicated interrupts
 							STATE <= FETCH;
+							
 						WHEN "10101" =>       -- SEI
 							IIE <= IIE OR IR(3 DOWNTO 0);  -- enable indicated interrupts
 							STATE <= FETCH;
-						WHEN "10110" =>       -- RETI
-							STATE <= EX_RETI;
-						WHEN "10111" =>       -- LOADI
-							STATE <= EX_LOADI;
+							
+						WHEN "10110" =>       STATE <= EX_RETI;
+						WHEN "10111" =>       STATE <= EX_LOADI;
 
 
 						-- 
@@ -298,42 +288,26 @@ BEGIN
 						--
 						-- Harrison
 
-						WHEN "11000" =>
-							STATE <= EX_MOVR;
-
-						WHEN "11001" =>
-							STATE <= EX_SUBR;
-
-						WHEN "11010" =>
-							STATE <= EX_ADDIR;
-
-						WHEN "11011" =>
-							STATE <= EX_ANDR;
-
-						WHEN "11100" => 
-							STATE <= EX_ORR;
+						WHEN "11000" => 	STATE <= EX_MOVR;
+						WHEN "11001" => 	STATE <= EX_ADDR;
+						WHEN "11010" =>		STATE <= EX_SUBR;
+						WHEN "11011" => 	STATE <= EX_ANDR;
+						WHEN "11100" => 	STATE <= EX_ORR;
+						WHEN "11101" =>		STATE <= EX_CMP;
+						WHEN "11110" =>		STATE <= EX_LT;
+						WHEN "11111" =>		STATE <= EX_GT;
 
 
-						-- Comparisons
-						--
-
-						WHEN "11101" =>
-							STATE <= EX_CMP;
-
-						WHEN "11110" =>
-							STATE <= EX_LT;
-
-						WHEN "11111" =>
-							STATE <= EX_GT;
-
-
-						WHEN OTHERS =>
-							STATE <= FETCH;      -- Invalid opcodes default to NOP
+						WHEN OTHERS =>		STATE <= FETCH;      -- Invalid opcodes default to NOP
+						
 					END CASE;
-
-
-
-
+				
+				
+				
+				--
+				-- Fetch States
+				-- 
+				--
 
 				WHEN EX_LOAD =>
 					AC    <= MDR;            -- Latch data from MDR (memory contents) to AC
@@ -454,147 +428,357 @@ BEGIN
 				--
 
 				WHEN EX_MOVR =>
-
-					-- Reading of the register is already done.
 					
-					if (IR(9 downto 5) /= "0000") then
-
-						-- If the destination register is 0000 (ie the AC) then we DONT
-						-- want to enable the write signal since there is no 0-th register in the register
-						-- file.
-
-						-- Note to self: If this doesnt work. We can always write junk to the 0-th
-						-- register in the register file, and then explicitly write to AC when 
-						-- we need to.
-
-						-- Set the writeEnable line high to initiate a write operation.
-						registerFile_writeEnable <= '1';
-
+					if( regFileDest = 0 ) then
+						
+						-- If regFileSource is 0, then we dont want to overwrite AC with register_file(0)
+						-- We just skip.
+						if( regFileSource /= 0 ) then
+						
+							AC <= regFile(regFileSource);
+						
+						end if;
+						
+					else 
+						if( regFileSource = 0) then
+							
+							regFile(regFileDest) <= AC;
+							
+						else
+					
+							regFile(regFileDest) <= regFile(regFileSource);
+						
+						end if;
 					end if;
-
-
-					STATE <= EX_MOVR2;
-
-
-				WHEN EX_MOVR2 =>
-
-					-- If the top 5 bits of the IR are 0, then we want to write to the AC.
-					-- 
-
-					if( IR(9 downto 0) = "0000") then
-
-						AC <= outRegA;
-
-					end if;
-
-					-- Set writeEnable low no matter what.
-					registerFile_writeEnable <= '0';
 
 					STATE <= FETCH;
-
-
-
-
-
-
+				
+				
+				
+				
 				WHEN EX_ADDR =>
 
-					-- The reading is already done.
-
-					AC <= registerFile_outRegA + registerFile_outRegB;
+					if( regFileDest = 0 ) then
+						
+						if(regFileSource = 0) then
+							
+							-- Effectively doing AC*2.
+							AC <= AC + AC;
+							
+						else
+							
+							AC <= AC + regFile(regFileSource);
+							
+						end if;
+						
+					else 
+						
+						if(regFileSource = 0) then
+					
+							AC <= regFile(regFileDest) + AC;
+						else
+							
+							AC <= regFile(regFileDest) + regFile(regFileSource);
+						end if;
+						
+					end if;
 
 					STATE <= FETCH;
 
 
-
+				--
+				-- SUBR
+				-- 
+				-- Subtract two registers together.
+				--
+				-- Format: subr <regA>, <regB> 
+				--
+				-- AC = <regA> - <regB>
+				--
+				-- NOTE: The following pseudo-instructions could be implemented in the assembler:
+				--
+				-- 1) 	subr <regA>, <regB>, <regC> becomes
+				-- 
+				--		subr <regB>, <regC>
+				-- 		movr <regA>, AC
+				-- 
+				--
+				-- 
 
 				WHEN EX_SUBR =>
-
-					AC 		<= registerFile_outRegA - registerFile_outRegB;
+					
+					if( regFileDest = 0 ) then
+						
+						if(regFileSource = 0) then
+							
+							-- Anything minus itself is just zero.
+							AC <= x"0000";
+							
+						else
+							
+							AC <= AC - regFile(regFileSource);
+						end if;
+						
+					else 
+						
+						if(regFileSource = 0) then
+							
+							AC <= regFile(regFileDest) - AC;
+						else
+						
+							AC <= regFile(regFileDest) - regFile(regFileSource);
+						end if;
+						
+						
+					end if;
+					
 					STATE 	<= FETCH;
 
 				
-				-- ADDIR
-				-- Add Immediate Register 
-				-- 
-				-- Treat the bits in IR(4 downto 0) as an immediate value.
+	
 				--
-
-				WHEN EX_ADDIR =>
-
-					AC  <= registerFile_outRegA + (IR(4) & IR(4) & IR(4) & IR(4) & IR(4) & IR(4) & 
-							IR(4) & IR(4) & IR(4) & IR(4) & IR(4) & IR(4 DOWNTO 0));
-
-					STATE <= FETCH;
-
+				-- ANDR
+				-- 
+				-- Logical AND two registers together.
+				--
+				-- Format: ANDR <regA>, <regB> 
+				--
+				-- AC = <regA> & <regB>
+				--
+				-- NOTE: The following pseudo-instructions could be implemented in the assembler:
+				--
+				-- 1) 	andr <regA>, <regB>, <regC> becomes
+				-- 
+				--		andr <regB>, <regC>
+				-- 		movr <regA>, AC
+				-- 
+				--
+				-- 
+				
 				WHEN EX_ANDR =>
 
-					AC <= registerFile_outRegA and registerFile_outRegB;
+					if( regFileDest = 0 ) then
+						
+						if(regFileSource /= 0) then
+							
+							AC <= AC and regFile(regFileSource);
+						end if;
+						
+						-- AC <= AC and AC is just AC... IE do nothing.
+						
+					else 
+						
+						if(regFileSource /= 0) then
+							
+							AC <= regFile(regFileDest) and regFile(regFileSource);
+						else
+							
+							AC <= regFile(regFileDest) and AC;
+						end if;
+						
+					end if;
 
 					STATE <= FETCH;
+				
+				
+				
+				--
+				-- ORR
+				-- 
+				-- Logical OR two registers together.
+				--
+				-- Format: ORR <regA>, <regB> 
+				--
+				-- AC = <regA> | <regB>
+				--
+				-- NOTE: The following pseudo-instructions could be implemented in the assembler:
+				--
+				-- 1) 	orr <regA>, <regB>, <regC> becomes
+				-- 
+				--		orr <regB>, <regC>
+				-- 		movr <regA>, AC
+				-- 
+				--
+				-- 
 
 				WHEN EX_ORR =>
 
-					AC <= registerFile_outRegA or registerFile_outRegB;
-
-					STATE <= FETCH;
-
-
-				WHEN EX_CMP =>
-
-					if(registerFile_outRegA = registerFile_outRegB) then
-
-						AC <= "0000000000000001";
-
+					if( regFileDest = 0 ) then
+						
+						if( regFileSource /= 0) then
+						
+							AC <= AC or regFile(regFileSource);
+						end if;
+						
+						-- AC <= AC or AC is just AC.
+						
 					else 
-
-						AC <= "0000000000000000";
-
+						
+						if( regFileSource = 0) then
+							
+							AC <= regFile(regFileDest) or AC;
+						else
+					
+							AC <= regFile(regFileDest) or regFile(regFileSource);
+						end if;
+						
 					end if;
 
 					STATE <= FETCH;
 
+	
+	
+				--
+				-- CMP
+				-- 
+				-- Compare two registers together.
+				--
+				-- Format: CMP <regA>, <regB> 
+				--
+				-- AC = -1  	when <regA> is less than <regB>
+				-- AC = 0 		when <regA> equals <regB>
+				-- AC = 1 		when <regA> is greater than <regB>
+				--
+				-- Then the programmer uses jneg, jzero, jpos to jump accordingly.
+				--
+				-- NOTE: The following pseudo-instructions could be implemented in the assembler:
+				--
+				-- 1) 	gt <regA>, <regB>, <labelToJumpToIfTrue> becomes
+				-- 
+				-- 		cmp <regA>, <regB>
+				-- 		jpos <labelToJumpToIfTrue>
+				--
+				-- 2) 	lt <regA>, <regB>, <labelToJumpToIfTrue> becomes
+				--
+				-- 		cmp <regA>, <regB>
+				-- 		jneg <labelToJumpToIfTrue>
+				--
+				-- 3) 	eq <regA>, <regB>, <labelToJumpToIfTrue> becomes
+				--
+				-- 		cmp <regA>, <regB>
+				-- 		jzero <labelToJumpToIfTrue>
+				--
+				-- 4) 	lte <regA>, <regB>, <labelToJumpToIfTrue> becomes
+				--
+				-- 		cmp <regA>, <regB>
+				-- 		jneg <labelToJumpToIfTrue>
+				-- 		jzero <labelToJumpToIfTrue>
+				--
+				-- 5) 	gte <regA>, <regB>, <labelToJumpToIfTrue> becomes
+				--
+				-- 		cmp <regA>, <regB>
+				-- 		jzero <labelToJumpToIfTrue>
+				-- 		jpos <labelToJumpToIfTrue>
+				--
+				-- 
+				--
+				-- 
+	
+				WHEN EX_CMP =>
+					
+					
+					if( regFileDest = 0 ) then
+						
+						-- If we are comparing the AC to the AC then of course it is equal.
+						if(regFileSource = 0) then
+							
+							AC <= x"0000";
+						
+						else
+							
+							-- If the AC and the source register are equal then we set the AC = 0.
+							if(AC = regFile(regFileSource)) then
+							
+								AC <= "0000000000000000";
+							
+							-- If the AC is less than the register source, then we set AC = -1.
+							elsif(ieee.numeric_std.signed(AC) < ieee.numeric_std.signed(regFile(regFileSource))) then
+							
+								AC <= "1111111111111111";
+							
+							-- If the AC is greater than the register source, then we set AC = 1.
+							else
+							
+								AC <= "0000000000000001";
+							
+							end if;
+						
+						end if;
+						
+					else 
+						
+						if(regFileSource = 0) then
+							
+							if(regFile(regFileDest) = AC) then
+							
+								AC <= "0000000000000000";
+							
+							elsif(ieee.numeric_std.signed(regFile(regFileDest)) < ieee.numeric_std.signed(AC)) then
+							
+								AC <= "1111111111111111";
+							
+							else 
+							
+								AC <= "0000000000000001";
+							
+							end if;
+							
+						else
+					
+							if(regFile(regFileDest) = regFile(regFileSource)) then
+							
+								AC <= "0000000000000000";
+							
+							elsif(ieee.numeric_std.signed(regFile(regFileDest)) < ieee.numeric_std.signed(regFile(regFileSource))) then
+							
+								AC <= "1111111111111111";
+							
+							else
+							
+								AC <= "0000000000000001";
+							
+							end if;
+						
+						end if;
+						
+					end if;
+
+					STATE <= FETCH;
+
+
+
+				-- I dont need this!!
+				-- YAY! Two new instructions to play with!!
 
 				WHEN EX_LT =>
 
-					if( registerFile_outRegA < registerFile_outRegB ) then
-
-						AC <= "0000000000000001";
-
-					else 
-
-						AC <= "0000000000000000";
-
-					end if;
+					
 
 					STATE <= FETCH;
-
-
+				
 				WHEN EX_GT =>
-
-					if( registerFile_outRegA > registerFile_outRegB ) then
-
-						AC <= "0000000000000001";
-
-					else 
-
-						AC <= "0000000000000000";
-
-					end if;
-
+					
+					
+					
 					STATE <= FETCH;
 
-
+					
+					
+					
+					
+					
 
 				WHEN OTHERS =>
 					STATE <= FETCH;          -- If an invalid state is reached, return to FETCH
 					
 			END CASE;
+			
 			INT_REQ_SYNC <= INT_REQ;  -- register interrupt requests to SCOMP's clock.
+			
 		END IF;
-	END PROCESS;
-	
-	-- This process monitors the external interrupt pins, setting
+      END PROCESS;
+      
+      -- This process monitors the external interrupt pins, setting
 	-- some flags if a rising edge is detected, and clearing flags
 	-- once the interrupt is acknowledged.
 	PROCESS(RESETN, PCINT, INT_ACK, IIE)
@@ -611,5 +795,5 @@ BEGIN
 			END LOOP;
 		END IF;
 	END PROCESS;
-
-END a;
+      
+  END a;
