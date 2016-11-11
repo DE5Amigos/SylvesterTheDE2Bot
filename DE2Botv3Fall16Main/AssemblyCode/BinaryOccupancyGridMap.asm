@@ -80,16 +80,14 @@ ClearBOGMLoop:
 	
 	; NOTE: r4 holds the base address of BOGM.
 	addr 	r4, r9 		; Add the base address to the counter.
-	movr 	r12, r0 	; Move the new address to r12.
 	
-	; The current problem is that we cant load an address into 
-	; a register and then store data to that address... 
-	;
-	; This needs to be fixed for this junk to work.
-	
-	movr 	r0, r8 		; Write zero to the memory location.
-	storer 	r12 		; This doesnt exist yet... Can we get around it??
-	
+	; Note: r0 holds the address to write to. 
+
+	; Write to the pointer.
+ 	store 	BOGMPTR
+	movr 	r0, r8 		; r8 holds zero
+	istore 	BOGMPTR 	; write 0 to the address at BOGMPTR
+
 	; Prepare for next iteration of loop.
 	movr 	r0, r9 		; Increment the loop counter.
 	addi 	1
@@ -122,10 +120,11 @@ GetValueBOGM:
 	
 	; Calculate the new address to read from.
 	addr 	r4, r5
-	movr 	r4, r0
 	
-	loadr 	r0 		; Load the value at address (r0) into the AC (or r0).
-	movr 	r2, r0 	; Move the return value to r2.
+	store 	BOGMGETPTR 	; Store the pointer that we want to read from.
+	iload 	BOGMGETPTR 	; Load the data at the pointer.
+
+	movr 	r2, r0 		; Move the return value to r2.
 	
 	return
 
@@ -146,10 +145,10 @@ SetValueBOGM:
 	
 	; Calculate the new address to read from.
 	addr 	r4, r5
-	movr 	r4, r0
 	
+	store 	BOGMSETPTR 	; Write the address to the pointer.
 	movr 	r0, r6
-	storer 	r4
+	istore 	BOGMSETPTR 	; Write the value to the pointer.
 	
 	return
 
@@ -177,7 +176,16 @@ SetValueBOGM:
 ; In our program we can use BOGM0 as the base address of the array
 ; and calculate all of the addresses relative to that.
 ;
+; NOTE: Looking at some example code, we dont need the labels on every element.
+; The assembler will accept one label followed by a list of DWs.
+; Ultimately doesnt matter though. The assembler will just throw all of the
+; extraneous labels out.
 ;
+
+; Yes we could get away with one pointer.
+BOGMPTR: 	DW 	&H00
+BOGMGETPTR: DW 	&H00
+BOGMSETPTR: DW 	&H00
 
 BOGM0: 		DW 	&H00
 BOGM1: 		DW 	&H00
