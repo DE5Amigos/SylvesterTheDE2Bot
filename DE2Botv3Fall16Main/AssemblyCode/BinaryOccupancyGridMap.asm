@@ -25,9 +25,9 @@ Main:
 ; base address to any routine that wants to work with the
 ; BOGM.
 ; 
-;***********************************************************
 
-;
+
+;***********************************************************
 ; InitBOGM
 ;
 ; Initialize the BOGM. Thankfully, it will be initialized to 
@@ -42,7 +42,9 @@ InitBOGM:
 	return	
 
 	
-;
+	
+
+;***********************************************************
 ; ClearBOGM
 ;
 ; Clear the values of the BOGM to zero.
@@ -84,9 +86,15 @@ ClearBOGMLoop:
 	; a register and then store data to that address... 
 	;
 	; This needs to be fixed for this junk to work.
+	
+	movr 	r0, r8 		; Write zero to the memory location.
 	storer 	r12 		; This doesnt exist yet... Can we get around it??
 	
-	
+	; Prepare for next iteration of loop.
+	movr 	r0, r9 		; Increment the loop counter.
+	addi 	1
+	movr 	r9, r0
+	jump 	ClearBOGMLoop
 	
 	; }
 	
@@ -94,6 +102,62 @@ ClearBOGMLoopDone:
 	
 	return	
 
+	
+;***********************************************************
+; GetValueBOGM
+;
+; Get a specific element of the BOGM.
+;
+; Inputs:
+;
+; r4 = Base address of BOGM
+; r5 = Index to retrieve
+;
+; Output:
+; 
+; r2 = Return value
+;
+
+GetValueBOGM:
+	
+	; Calculate the new address to read from.
+	addr 	r4, r5
+	movr 	r4, r0
+	
+	loadr 	r0 		; Load the value at address (r0) into the AC (or r0).
+	movr 	r2, r0 	; Move the return value to r2.
+	
+	return
+
+;***********************************************************
+; SetValueBOGM
+;
+; Set a specific element of the BOGM to the passed value.
+;
+; Inputs:
+;
+; r4 = Base address of BOGM
+; r5 = Index to retrieve
+; r6 = Value to set to.
+;
+;
+
+SetValueBOGM:
+	
+	; Calculate the new address to read from.
+	addr 	r4, r5
+	movr 	r4, r0
+	
+	movr 	r0, r6
+	storer 	r4
+	
+	return
+
+
+	
+	
+	
+	
 ;***********************************************************
 ; Binary Occupancy Grid Map
 ;
@@ -102,7 +166,6 @@ ClearBOGMLoopDone:
 ;
 ; Define that memory here.
 ;
-;***********************************************************
 
 ; Yeah, this sucks! We dont have a convienient way of defining a
 ; large chunk of memory using this assembler...
@@ -220,7 +283,7 @@ BOGM95: 	DW 	&H00
 ;
 ; NOTE: Copy all of these to the bottom of your assembly code.
 ;		Using these makes your code more descriptive. 
-;***************************************************************
+
 
 r0: 	EQU 	&H00
 r1: 	EQU 	&H01
