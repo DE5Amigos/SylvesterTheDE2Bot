@@ -63,8 +63,11 @@ ARCHITECTURE a OF SCOMP IS
 		EX_ORR,
 
 		EX_CMP,
-		EX_LT,
-		EX_GT
+		EX_STORER,
+		EX_STORER2,
+
+		EX_LOADR,
+		EX_LOADR2
 	);
 	
 	
@@ -294,8 +297,8 @@ ARCHITECTURE a OF SCOMP IS
 						WHEN "11011" => 	STATE <= EX_ANDR;
 						WHEN "11100" => 	STATE <= EX_ORR;
 						WHEN "11101" =>		STATE <= EX_CMP;
-						WHEN "11110" =>		STATE <= EX_LT;
-						WHEN "11111" =>		STATE <= EX_GT;
+						WHEN "11110" =>		STATE <= EX_STORER;
+						WHEN "11111" =>		STATE <= EX_LOADR;
 
 
 						WHEN OTHERS =>		STATE <= FETCH;      -- Invalid opcodes default to NOP
@@ -747,15 +750,117 @@ ARCHITECTURE a OF SCOMP IS
 
 
 
-				-- I dont need this!!
-				-- YAY! Two new instructions to play with!!
+				--
+				-- STORER
+				-- 
+				-- Store data to an address in the supplied register.
+				-- Oh yeah, you MUST BE CAREFUL when using this...
+				--
+				-- On the other hand, you can now write self modifying
+				-- code, just in case you want to have some fun...
+				--
+				--
+				-- Format: STORER <register> 
+				--
+				-- Memory[register] := AC
+				-- 
+				--
+				-- 
 
-				WHEN EX_LT =>
+				WHEN EX_STORER =>
 
+					-- Modify the instruction register to our new
+					-- address which is stored in the register that is
+					-- provided as part of the instruction.
+
+					if(regFileDest = 0) then
+
+						IR(10 downto 0) <= AC(10 downto 0);
+
+					else
+
+						IR(10 downto 0) <= regFile(regFileDest)(10 downto 0);
 					
+					end if;
+
+					-- Now we write the MW signal high. 
+					-- On the next clock, MEM_ADDR will be loaded with our 
+					-- new "modified" IR values :)
+
+					MW 	<= '1';
+					
+					STATE <= EX_STORER2;
+
+
+				WHEN EX_STORER2 =>
+					MW <= '0';
+					STATE <= FETCH; 
+
+
+						
+				--
+				-- LOADR
+				-- 
+				-- Load data stored in memory at the address specified by in
+				-- in the register to the AC.
+				--
+				-- NOTE: Be careful!! There is no telling what will happen
+				-- if you specify an address that is out of bounds!!
+				--
+				-- Have fun!
+				--
+				-- Format: LOADR <register> 
+				--
+				-- AC := Memory[register]
+				-- 
+				--
+
+
+				WHEN EX_LOADR =>
+
+					-- Modify the IR(10 downto 0) value to the value stored in
+					-- the register.
+
+					if(regFileDest = 0) then
+
+						IR(10 downto 0) <= AC(10 downto 0);
+
+					else
+
+						IR(10 downto 0) <= regFile(regFileDest)(10 downto 0);
+					
+					end if;
+
+					STATE <= EX_LOADR2;
+
+				WHEN EX_LOADR2 =>
+
+					-- At this point, the memory has been read, and the value
+					-- returned to the MDR. We can now grab that data like normal.
+
+					AC <= MDR;
 
 					STATE <= FETCH;
+
+
+
 				
+				-- Just for reference.
+				--WHEN EX_STORE =>
+				--	MW    <= '1';            -- Raise MW to write AC to MEM
+				--	STATE <= EX_STORE2;
+
+				-- WHEN EX_STORE2 =>
+				-- 	MW    <= '0';            -- Drop MW to end write cycle
+				--	STATE <= FETCH;
+
+
+
+
+
+
+				-- Dont need this... 
+
 				WHEN EX_GT =>
 					
 					
