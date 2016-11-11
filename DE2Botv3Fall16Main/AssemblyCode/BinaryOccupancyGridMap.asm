@@ -80,6 +80,10 @@ ClearBOGMLoop:
 	addr 	r4, r9 		; Add the base address to the counter.
 	movr 	r12, r0 	; Move the new address to r12.
 	
+	; The current problem is that we cant load an address into 
+	; a register and then store data to that address... 
+	;
+	; This needs to be fixed for this junk to work.
 	storer 	r12 		; This doesnt exist yet... Can we get around it??
 	
 	
