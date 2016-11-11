@@ -1,0 +1,45 @@
+-- Altera Memory Initialization File (MIF)
+
+DEPTH = 2048;
+WIDTH = 16;
+
+ADDRESS_RADIX = HEX;
+DATA_RADIX = HEX;
+
+CONTENT
+  BEGIN
+    [000..7FF] : 0000;  -- Default to NOP
+
+           000 : 081E;  -- 	load 	One
+           001 : C020;  -- 	movr 	r1, r0 		; r0 = AC!
+           002 : C041;  -- 	movr 	r2, r1	 	; r2 = r1
+           003 : C000;  -- 	movr 	r0, r0 		; doesnt do anything, but still valid.
+           004 : C821;  -- 	addr 	r1, r1 		; valid - doubles.
+           005 : C801;  -- 	addr 	r0, r1 		; r0 = r0 + r1
+           006 : C841;  -- 	addr 	r2, r1 		
+           007 : C060;  -- 	movr 	r3, r0 		; r3 = r2 + r1
+           008 : D021;  -- 	subr 	r1, r1 		; valid - zero.
+           009 : D001;  -- 	subr 	r0, r1 		; r0 = r0 - r1
+           00A : D041;  -- 	subr 	r2, r1 		
+           00B : C060;  -- 	movr 	r3, r0 		; r3 = r2 - r1
+           00C : 081E;  -- 	load 	One
+           00D : C020;  -- 	movr 	r1, r0
+           00E : 081F;  -- 	load 	Two
+           00F : C040;  -- 	movr 	r2, r0
+           010 : E821;  -- 	cmp 	r1, r1 		; valid - always returns zero.
+           011 : E822;  -- 	cmp 	r1, r2		; r1 < r2 -> true so AC := -1 		
+           012 : 301D;  -- 	jneg 	SomeLabelHere
+           013 : E822;  -- 	cmp 	r1, r2
+           014 : 401D;  -- 	jzero 	SomeLabelHere
+           015 : E822;  -- 	cmp 	r1, r2
+           016 : 381D;  -- 	jpos 	SomeLabelHere
+           017 : E822;  -- 	cmp 	r1, r2
+           018 : 301D;  -- 	jneg 	SomeLabelHere
+           019 : 401D;  -- 	jzero 	SomeLabelHere
+           01A : E822;  -- 	cmp 	r1, r2
+           01B : 401D;  -- 	jzero 	SomeLabelHere
+           01C : 381D;  -- 	jpos 	SomeLabelHere
+           01D : 281D;  -- SomeLabelHere: jump SomeLabelHere	
+           01E : 0001;  -- One: 	DW 	&H01
+           01F : 0002;  -- Two: 	DW 	&H02
+  END;
