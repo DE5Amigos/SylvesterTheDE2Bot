@@ -13,7 +13,7 @@ Main:
 	; The routines would be called from the main routine.
 	;
 	
-
+	
 	
 	
 	
@@ -128,6 +128,57 @@ GetValueBOGM:
 	
 	return
 
+
+
+;***********************************************************
+; GetValueBOGMMulti
+;
+; Get a specific element of the BOGM using multidimensional
+; indices, similiar to how high level languages access
+; array elements.
+;
+; Example: array[i][j]
+;
+; Inputs:
+;
+; r4 = Base address of BOGM
+; r5 = row index
+; r6 = col index
+;
+; Output:
+; 
+; r2 = Return value
+;
+
+GetValueBOGMMulti:
+	
+	; Formula:
+	; BaseAddress + (i*L_i + j)*sizeof(int *)
+	;
+	; i = r5
+	; j = r6
+	; L_i = 8 - power of 2 thankfully
+	; L_j = 12 - but we dont care about this.
+	
+	movr 	r0, r5
+	shift 	3 		; Multiply by 8.
+	addr 	r0, r6
+
+	; sizeof(int *) = 1 thankfully!!
+	; shift 	sizeof(int *)
+
+	addr 	r0, r4  	; Add the base address.
+
+	store 	BOGMGETPTR 	; Store the pointer that we want to read from.
+	iload 	BOGMGETPTR 	; Load the data at the pointer.
+
+	movr 	r2, r0 		; Move the return value to r2.
+	
+	return
+
+
+
+
 ;***********************************************************
 ; SetValueBOGM
 ;
@@ -151,6 +202,57 @@ SetValueBOGM:
 	istore 	BOGMSETPTR 	; Write the value to the pointer.
 	
 	return
+
+
+;***********************************************************
+; SetValueBOGMMulti
+;
+; Set a specific element of the BOGM using multidimensional
+; indices, similiar to how high level languages access
+; array elements.
+;
+; Example: array[i][j] = <value>
+;
+; Inputs:
+;
+; r4 = Base address of BOGM
+; r5 = row index
+; r6 = col index
+; r7 = value to write.
+;
+; Output:
+; 
+; r2 = Return value
+;
+
+SetValueBOGMMulti:
+	
+	; Formula:
+	; BaseAddress + (i*L_i + j)*sizeof(int *)
+	;
+	; i = r5
+	; j = r6
+	; L_i = 8 - power of 2 thankfully
+	; L_j = 12 - but we dont care about this.
+	
+	movr 	r0, r5
+	shift 	3 		; Multiply by 8.
+	addr 	r0, r6
+
+	; sizeof(int *) = 1 thankfully!!
+	; shift 	sizeof(int *)
+
+	addr 	r0, r4  	; Add the base address.
+	
+	store 	BOGMSETPTR 	; Store the pointer that we want to read from.
+	movr 	r0, r7 		; Store the value to write to r0.
+	
+	istore 	BOGMSETPTR 	; Store the value to the pointer.
+
+	movr 	r2, r0 		; Move the return value to r2.
+	
+	return
+
 
 
 	
