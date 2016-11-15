@@ -71,20 +71,8 @@ Main:
 	; If you want to take manual control of the robot,
 	; execute a CLI &B0010 to disable the interrupt.
 	
-EnableSonars:
-	LOAD   Mask2
-	OR     Mask3
-	OR	   Mask4
-	OR	   Mask1
-	OUT    SONAREN     ; enable front-facing sensors
 
 
-	LOAD Five
-	OUT SSEG1
-	CALL Wait1
-	SUB Three
-	OUT SSEG1
-	
 Turn45:
 	LOADI  0
 	STORE  DVel       ; desired forward velocity
@@ -94,106 +82,108 @@ Turn45:
 	OUT SSEG1
 	ADDI -40
 	JNEG Turn45
-
-
 	
-FindMin: ; this doesn't work.
-s1:	IN Dist1
-	OUT SSEG1
-	CALL Wait1
-	STORE Min
-	LOAD One
-	STORE MinNum
-	OUT LCD
-s2:	IN Dist2
-	OUT SSEG1
-	CALL Wait1
-	SUB Min
-	JPOS s3
+FindMin:
+;put sensor data into registers 4,5,6,7
+	IN Dist1
+	MOVR r4, r0
 	IN Dist2
-	STORE Min
-	LOAD Two
-	STORE MinNum
-	OUT LCD
-s3:	IN Dist3
-	OUT SSEG1
-	CALL Wait1
-	SUB Min
-	JPOS s4
+	MOVR r5, r0
 	IN Dist3
-	STORE Min
-	LOAD Three
-	STORE MinNum
-	OUT LCD
-s4:	IN Dist4
-	OUT SSEG1
-	CALL Wait1
-	SUB Min
-	JPOS Turn
+	MOVR r6, r0
 	IN Dist4
-	STORE Min
-	LOAD Four
-	STORE MinNum
-	OUT LCD
-
+	MOVR r7, r0
+	
+	CALL MinimumOfFour
+	;r2 contains minimum value (need to modify subroutine to give index too.) we'll say r1 contains index.
+	
+	
+	; decide which way to turn. this'll all go into a subroutine later.
 Turn:
-	LOAD MinNum
-	OUT  LCD
-	ADDI -1
-	JZERO TurnL
-	LOAD MinNum
-	ADDI -4
-	JZERO TurnR
-	JUMP Move
+	MOVR r0, r1		; puts r1 in acc
+	ADDI -1			; is the min sensor #1?
+	JZERO TurnL		; we need to turn left to face it
+	MOVR r0, r1		; puts r1 in acc
+	ADDI -4			; is the min sensor #4?
+	JZERO TurnR		; we need to turn right to face it
 	
+	;turn leftwards (increasing theta) until sensor 3 sees the min
 TurnL:
-	LOADI  0
-	STORE  DVel       ; desired forward velocity
-	LOADI  70
-	STORE DTheta
-	IN Theta
-	OUT SSEG1
-	ADDI -66
-	JNEG TurnL
-	JUMP Move
+	LOADI 0
+	STORE DVel		; desired forward velocity
+	IN Theta		; current angle
+	ADDI 3			; move 3 at a time
+	OUT DTheta		; turn left
+	MOVR r0, r2		; bring r2 (min distance) into acc 
+	ADDI 50			; add some constant for error
+	MOVR r3, r0 	; put r2 + some constant into r3
+	IN Dist3		; check sensor 3
+	MOVR r4, r0		; put it into r4
+	CMP r4, r3		; compare reading from sensor 3 with min distance (+ error tolerance)
+	JNEG Move		; reading is closer than min distance, we can move forward now
+	JUMP TurnL		; reading is further than min distance, keep turning
+
 	
+	;turn rightwards (decreasing theta) until sensor 2 sees the min
 TurnR:
-	LOADI  0
-	STORE  DVel       ; desired forward velocity
-	LOADI  20
-	STORE DTheta
-	IN Theta
-	OUT SSEG1
-	ADDI -17
-	JNEG TurnR
-	JUMP Move
+	LOADI 0
+	STORE DVel      ; desired forward velocity
+	IN Theta		; current angle
+	ADDI -3			; move 3 at a time
+	OUT DTheta		; turn right
+	MOVR r0, r2		; bring r2 (min distance) into acc 
+	ADDI 50			; add some constant for error
+	MOVR r3, r0 	; put r2 + some constant into r3
+	IN Dist2		; check sensor 2
+	MOVR r4, r0		; put it into r4
+	CMP r4, r3		; compare reading from sensor 2 with min distance (+ error tolerance)
+	JNEG Move		; reading is closer than min distance, we can move forward now
+	JUMP TurnR		; reading is further than min distance, keep turning
 
-Move:
-	IN MinNum
-	STORE Target
-Move1:
+Move: 
+	LOADI 500
+	STORE DVel		; move forward fast.
+	LOADI 200		;put some minimum allowed distance (touching object) into r6
+	MOVR r6, r0
 	IN Dist2
-	SUB Target
+	MOVR r4, r0		; put in r4
+	IN Dist3
+	MOVR r5, r0		; put in r5
+	CMP r4, r6		; Check to see if sensor 2 sees that the object as been reached
+	JNEG Found
+	CMP r5, r6		; Check to see if sensor 3 sees that the object has been reached
+	JNEG Found
+	CMP r4, r5		; r4 still contains the error adjusted min value
+	JNEG VeerL		; sensor 2 sees object
+	JPOS VeerR		; sensor 3 sees object
+	IN Dist2		; sensors 2 and 3 had the object in sight
+	ADDI 5			; adjust for error
+	MOVR r3, r0		; update distance to target
+	JUMP Move		; both see object, just go forward
 	
-TiltLeft:
-	LOADI 500
-	STORE DVel
-	IN Theta
-	ADDI 1
-	STORE DTheta
-	JUMP Move1
-TiltRight:
-	LOADI 500
-	STORE DVel
-	IN Theta
-	ADDI -1
-	STORE DTheta
-	JUMP Move1
+VeerL:
+	IN Dist2		; sensor 2 had the object in sight
+	ADDI 50			; adjust for error
+	MOVR r3, r0		; update distance to target
+	IN Theta		; current angle
+	ADDI 1			; move 1 at a time
+	OUT DTheta		; update angle
+	JUMP Move		; continue moving
 	
-
-Min:    DW 0
-MinNum: DW 0
-Target: DW 0
+VeerR:
+	IN Dist3		; sensor 3 had the object in sight
+	ADDI 50			; adjust for error
+	MOVR r3, r0		; update distance to target
+	IN Theta		; current angle
+	ADDI -1			; move 1 at a time
+	OUT DTheta		; update angle
+	JUMP Move		; continue moving
+	
+Found:
+	LOADI 0
+	STORE DVel		; stop moving
+	CALL ReturnHome
+	JUMP WaitForUser
 	
 Die:
 ; Sometimes it's useful to permanently stop execution.
@@ -272,84 +262,109 @@ CapVelLow:
 ;***************************************************************
 ;* Subroutines
 ;***************************************************************
+;Return Home. Does not use sensors to check for wall, so we need to add that function in.
 
-;;go home
-ReturnHome:	
-	LOAD XPOS
+ReturnHome:
+	IN XPOS		
 	STORE AtanX
-	LOAD YPOS
+	IN YPOS
 	STORE AtanY
-	CALL Atan2
-	STORE Temp
-	LOAD theta
-	SUB	Temp
-	JNEG RevCW
-	JPOS RevCCW
-	
-RevCW:
-	LOAD RMid
-	OUT RVelCmd
-	LOAD FMid
-	OUT	LVelCmd
-	LOAD theta
-	SUB Temp
-	JNEG RevCW
-	JUMP Rev
-	
-RevCCW:
-	LOAD RMid
-	OUT	LVelCmd
-	LOAD FMid
-	OUT RVelCmd
-	LOAD theta
-	SUB	Temp
-	JPOS RevCCW
-	JUMP Rev
-	
-Rev:				; Reverse Sonar Setup
-	LOAD Mask7
-	OR	 Mask6
-	OUT  SONAREN
-Rev1:				; Goes straight back and checks sonar
-	LOAD RMid
-	OUT	LVelCmd
-	OUT RVelCmd
-	IN Dist6
-	STORE Temp
-	SUB	OneFoot
-	JNEG Rev2		; Sonar 6 is within good range
-	IN Dist7
-	SUB	OneFoot
-	JNEG Rev3		; Sonar 7 is within good range
-	SUB Temp
-	JPOS RevCCW
-	JNEG RevCW			
-Rev2:				; X-coordinates are good, need to check Y				
-	IN Dist7
-	SUB	OneFoot
-	JNEG Home	;Y-coordinates are good too, start from the top
-	LOAD Zero
+	CALL Atan2		; get the angle we need to turn to
 	STORE DTheta
-	LOAD RMid
+	
+TurnH:
+	IN Theta
+	MOVR r9, r0		; load r9 with theta
+	ADDI -1
+	MOVR r10, r0	; load r10 with desired angle -1 deg
+	ADDI 2
+	MOVR r11, r0	; load r11 with angle +1 deg
+	CMP r9, r10
+	JPOS CheckH		; theta is larger than low range of desired angle
+	JUMP TurnH	
+CheckH:
+	CMP r9, r11		
+	JNEG DriveH		; theta is smaller than high range of desired angle
+	JUMP TurnH
+	
+DriveH:
+	LOADI -500		; reverse at fast speed
 	STORE DVel
-	CALL ControlMovement
-	JUMP Rev2	; Keeps going until Dist7 is within One Foot
+	IN XPOS			; check x pos
+	ADDI -500		; home base
+	JPOS DriveH		; keep driving if not home
+	IN YPOS			; check y pos
+	ADDI -500		; home base
+	JPOS DriveH		; keep driving if not home
+	
+	LOADI 0
+	STORE DVel		; stop
+	return
+	
 
-Rev3:				; X-coordinates are good, need to check Y				
-	IN Dist6
-	SUB	OneFoot
-	JNEG Home	;X-coordinates are good too, start from the top
-	LOAD Deg90
-	STORE DTheta
-	LOAD RMid
-	STORE DVel
-	CALL ControlMovement
-	JUMP Rev3	; Keeps going until Dist6 is within One Foot
+
+
+
+;Finds the minimum of two numbers
+MinimumOfTwo:
+
 	
-		
+
+	movr 	r2, r4 				; Assume r4 is min to start with.
+	loadi	1
+	movr	r1, r0
 	
-Home:
-	RETURN
+
+
+	cmp 	r4, r5				; Is r4 < r5
+
+	jneg 	MinimumOfTwoEnd 	; Jump to end if r4 is the min.
+
+	movr 	r2, r5 				; Set r2 to r5 since that is min (or equal).
+	loadi	2
+	movr	r1, r0
+
+
+
+MinimumOfTwoEnd:
+
+	return
+	
+;finds the minimum of four numbers
+MinimumOfFour:
+
+	
+
+	; r2 = the minimum register.
+
+
+
+	call 	MinimumOfTwo 	; Will place the min{r4, r5} in r2.
+
+
+
+	movr 	r4, r2 			; Move the new min to the input r4.
+
+	movr 	r5, r6 			; Move the next test value to input r5.
+
+
+
+	call 	MinimumOfTwo 	; Will place min{r4, r5, r6} into r2.
+
+
+
+	movr 	r4, r2
+
+	movr 	r5, r7 
+
+
+
+	call 	MinimumOfTwo 	; r2 will contain proper return value.
+
+	
+
+	return				; Finished
+
 
 ;*******************************************************************************
 ; Mod360: modulo 360
@@ -712,13 +727,13 @@ L2T2: DW 0
 L2T3: DW 0
 
 
-; Subroutine to wait (block) for 2 second
+; Subroutine to wait (block) for 1 second
 Wait1:
 	OUT    TIMER
 Wloop:
 	IN     TIMER
 	OUT    XLEDS       ; User-feedback that a pause is occurring.
-	ADDI   -20         ; 2 second at 10Hz.
+	ADDI   -10         ; 1 second at 10Hz.
 	JNEG   Wloop
 	RETURN
 
@@ -835,7 +850,6 @@ LowNibl:  DW &HF       ; 0000 0000 0000 1111
 OneMeter: DW 961       ; ~1m in 1.04mm units
 HalfMeter: DW 481      ; ~0.5m in 1.04mm units
 TwoFeet:  DW 586       ; ~2ft in 1.04mm units
-OneFoot:  DW 293
 Deg90:    DW 90        ; 90 degrees in odometer units
 Deg180:   DW 180       ; 180
 Deg270:   DW 270       ; 270
@@ -893,3 +907,67 @@ THETA:    EQU &HC2  ; Current rotational position of robot (0-359)
 RESETPOS: EQU &HC3  ; write anything here to reset odometry to 0
 RIN:      EQU &HC8
 LIN:      EQU &HC9
+
+r0: 	EQU 	&H00
+
+r1: 	EQU 	&H01
+
+r2: 	EQU 	&H02
+
+r3: 	EQU 	&H03
+
+r4: 	EQU 	&H04
+
+r5: 	EQU 	&H05
+
+r6: 	EQU 	&H06
+
+r7: 	EQU 	&H07
+
+r8: 	EQU 	&H08
+
+r9: 	EQU 	&H09
+
+r10: 	EQU 	&H0A
+
+r11: 	EQU 	&H0B
+
+r12: 	EQU 	&H0C
+
+r13: 	EQU 	&H0D
+
+r14: 	EQU 	&H0E
+
+r15: 	EQU 	&H0F
+
+r16: 	EQU 	&H10
+
+r17: 	EQU 	&H11
+
+r18: 	EQU 	&H12
+
+r19: 	EQU 	&H13
+
+r20: 	EQU 	&H14
+
+r21: 	EQU 	&H15
+
+r22: 	EQU 	&H16
+
+r23: 	EQU 	&H17
+
+r24: 	EQU 	&H18
+
+r25: 	EQU 	&H19
+
+r26: 	EQU 	&H1A
+
+r27: 	EQU 	&H1B
+
+r28: 	EQU 	&H1C
+
+r29: 	EQU 	&H1D
+
+r30: 	EQU 	&H1E
+
+r31: 	EQU 	&H1F
