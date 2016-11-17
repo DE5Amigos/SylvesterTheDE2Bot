@@ -1,0 +1,12 @@
+00173 : Invalid character(s) in numerical expression.
+00011 : Undefined symbol ctimer_isr!
+00025 : Undefined symbol zero!
+00031 : Undefined symbol setupi2c!
+00032 : Undefined symbol battcheck!
+00046 : Undefined symbol mask4!
+00049 : Undefined symbol mask1!
+00063 : Undefined symbol mask1!
+00065 : Undefined symbol temp!
+00067 : Undefined symbol temp!
+00070 : Undefined symbol mask2!
+00072 : Undefined symbol zero!
