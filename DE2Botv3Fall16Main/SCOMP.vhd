@@ -861,11 +861,6 @@ ARCHITECTURE a OF SCOMP IS
 
 				-- Dont need this... 
 
-				WHEN EX_GT =>
-					
-					
-					
-					STATE <= FETCH;
 
 					
 					
