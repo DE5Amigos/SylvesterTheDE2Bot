@@ -3,7 +3,7 @@
 ;
 ; @brief 		Main entry point for the DE2 Bot code.
 ; 
-; @author 		Daley Stepanek (need to get correct spelling)
+; @author 		Daley Stepanek
 ; @author 		George Tang
 ; @author 		Harrison Statham
 ; @author 		Mark Woodson 	
