@@ -9,6 +9,7 @@
 ; - Call Mult16s
 ; - Result is stored in mres16sH and mres16sL (high and low words).
 ;*******************************************************************************
+
 Mult16s:
 	LOADI  0
 	STORE  m16sc        ; clear carry

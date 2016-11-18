@@ -1,3 +1,11 @@
+; ==================================================================
+; CTimer_ISR
+;
+; @brief 		An interrupt to handle robot movement.
+;
+; @author 		Kevin Johnson (?)
+; ==================================================================
+
 ; Timer ISR.  Currently just calls the control code
 CTimer_ISR:
 	CALL   ControlMovement

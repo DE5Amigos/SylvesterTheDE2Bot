@@ -1,21 +1,23 @@
 ; ==================================================================
-; Wait1
+; WaitAC
 ;
-; @brief 		Subroutine to wait (block) for 1 second
+; @brief 	Wait the number of counts in AC.
+; @author 	Kevin Johnson
 ;
-; @author 		Kevin Johnson (?)
 ; ==================================================================
 
-Wait1:
-	OUT    TIMER
-Wloop:
-	IN     TIMER
+WaitAC:
+	STORE  WaitTime
+	OUT    Timer
+WACLoop:
+	IN     Timer
 	OUT    XLEDS       ; User-feedback that a pause is occurring.
-	ADDI   -10         ; 1 second at 10Hz.
-	JNEG   Wloop
+	SUB    WaitTime
+	JNEG   WACLoop
 	RETURN
+	WaitTime: DW 0     ; "local" variable.
 
 
-; End Wait1.asm
+; End WaitAC.asm
 ; ==================================================================
 

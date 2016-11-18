@@ -8,6 +8,7 @@
 ; - Result is stored in dres16sQ and dres16sR (quotient and remainder).
 ; Requires Abs subroutine
 ;*******************************************************************************
+
 Div16s:
 	LOADI  0
 	STORE  dres16sR     ; clear remainder result

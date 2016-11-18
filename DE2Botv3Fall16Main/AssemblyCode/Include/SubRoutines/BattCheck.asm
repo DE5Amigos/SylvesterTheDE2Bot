@@ -1,7 +1,14 @@
+; ==================================================================
+; Die
+;
+; @description 		This subroutine will get the battery voltage,
+; 					and stop program execution if it is too low.
+; 					SetupI2C must be executed prior to this.
+;
+; @author 			Kevin Johnson (?)
+; ==================================================================
 
-; This subroutine will get the battery voltage,
-; and stop program execution if it is too low.
-; SetupI2C must be executed prior to this.
+
 BattCheck:
 	CALL   GetBattLvl
 	JZERO  BattCheck   ; A/D hasn't had time to initialize
@@ -9,6 +16,7 @@ BattCheck:
 	JNEG   DeadBatt
 	ADD    MinBatt     ; get original value back
 	RETURN
+	
 ; If the battery is too low, we want to make
 ; sure that the user realizes it...
 DeadBatt:

@@ -3,6 +3,8 @@
 #
 #
 
+import sys
+
 inputFiles = [
 	
 	
@@ -13,6 +15,7 @@ inputFiles = [
 	'Include\Init\WaitForUser.asm',
 
 	'Main.asm',
+	'Include\SubRoutines\Die.asm',
 
 	'Include\SubRoutines\Abs.asm',
 	'Include\SubRoutines\Atan2.asm',
@@ -23,6 +26,8 @@ inputFiles = [
 	'Include\SubRoutines\L2Estimate.asm',
 	'Include\SubRoutines\Mod360.asm',
 	'Include\SubRoutines\Mult16s.asm',
+	'Include\SubRoutines\ReturnHome.asm',
+	'Include\SubRoutines\Turn45.asm',
 	'Include\SubRoutines\Wait1.asm',
 
 	'Include\Static\Variables.asm',
@@ -35,17 +40,31 @@ outputFile = 'DE5Amigos.asm'
 
 
 def main():
-	
-	with open(outputFile, 'a') as outFile:
+		
+	inArg = sys.argv[1]
 
-		for f in inputFiles:
+	if(inArg == 'Build'):
 
-			inFile 	= open(f, 'r')
-			data 	= inFile.read()
+		with open(outputFile, 'a') as outFile:
 
-			outFile.write(data)
+			for f in inputFiles:
 
-			inFile.close()
+				inFile 	= open(f, 'r')
+				data 	= inFile.read()
+
+				outFile.write(data)
+
+				inFile.close()
+
+	if(inArg == 'Error'):
+
+		with open('DE5Amigos.err') as errorFile:
+
+			print(errorFile.read())
+
+	if(inArg == 'Clean'):
+		pass
+		
 
 
 	

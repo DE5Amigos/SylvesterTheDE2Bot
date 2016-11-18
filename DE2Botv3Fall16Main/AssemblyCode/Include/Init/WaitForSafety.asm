@@ -1,3 +1,9 @@
+; ==================================================================
+; WaitForSafety
+;
+; @author 		Kevin Johnson (instructor)	
+; ==================================================================
+
 WaitForSafety:
 	; This loop will wait for the user to toggle SW17.  Note that
 	; SCOMP does not have direct access to SW17; it only has access

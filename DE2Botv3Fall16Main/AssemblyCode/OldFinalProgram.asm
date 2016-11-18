@@ -1,50 +1,19 @@
-; ==================================================================
-; DE5Amigos
-;
-; @brief 		DE5 Amigos code to control Sylvester the DE2 Bot.
-;
-; @description 	This code controls the DE2Bot (Sylvester) to navigate
-; 				through an environment (defined by the instructors),
-; 				find objects, intentionally bump into them, 
-; 				return to the initial starting position, and repeat.
-;
-; @author 		Kevin Johnson (instructor)
-; 
-; @author 		Daley Stepanek (need to get correct spelling)
-; @author 		George Tang
-; @author 		Harrison Statham
-; @author 		Mark Woodson 	
-; 
-; @date 		Fall 2016
-;	
-; ==================================================================
-
-
-; ==================================================================
-; Initialization
-;
-; @author 		Kevin Johnson (instructor)	
-; ==================================================================
-
+; Fall2016StartingPoint.asm
+; This program includes a basic movement API that allows the
+; user to specify a desired heading and speed, and the API will
+; attempt to control the robot in an appropriate way.
 
 ; This code uses the timer interrupt for the control code.
-	ORG 0              ; Jump table is located in mem 0-4
+ORG 0                  ; Jump table is located in mem 0-4
 	JUMP   Init        ; Reset vector
 	RETI               ; Sonar interrupt (unused)
 	JUMP   CTimer_ISR  ; Timer interrupt
 	RETI               ; UART interrupt (unused)
 	RETI               ; Motor stall interrupt (unused)
 
-	
-; End InterruptTable.asm
-; ==================================================================
-
-; ==================================================================
-; Initialization
-;
-; @author 		Kevin Johnson (instructor)	
-; ==================================================================
-
+;***************************************************************
+;* Initialization
+;***************************************************************
 Init:
 	; Always a good idea to make sure the robot
 	; stops in the event of a reset.
@@ -58,18 +27,6 @@ Init:
 	CALL   BattCheck   ; Get battery voltage (and end if too low).
 	OUT    LCD         ; Display battery voltage (hex, tenths of volts)
 
-
-
-
-; End Initialization.asm
-; ==================================================================
-
-; ==================================================================
-; WaitForSafety
-;
-; @author 		Kevin Johnson (instructor)	
-; ==================================================================
-
 WaitForSafety:
 	; This loop will wait for the user to toggle SW17.  Note that
 	; SCOMP does not have direct access to SW17; it only has access
@@ -82,18 +39,7 @@ WaitForSafety:
 	SHIFT  8           ; Shift over to LED17
 	OUT    XLEDS       ; LED17 blinks at 2.5Hz (10Hz/4)
 	JUMP   WaitForSafety
-
 	
-; End WaitForSafety.asm
-; ==================================================================
-
-; ==================================================================
-; WaitForUser
-;
-; @author 		Kevin Johnson (instructor)	
-; ==================================================================
-
-
 WaitForUser:
 	; This loop will wait for the user to press PB3, to ensure that
 	; they have a chance to prepare for any movement in the main code.
@@ -110,24 +56,9 @@ WaitForUser:
 	LOAD   Zero
 	OUT    XLEDS       ; clear LEDs once ready to continue
 
-; End WaitForUser.asm
-; ==================================================================
-
-; ==================================================================
-; Main
-;
-; @brief 		Main entry point for the DE2 Bot code.
-; 
-; @author 		Daley Stepanek (need to get correct spelling)
-; @author 		George Tang
-; @author 		Harrison Statham
-; @author 		Mark Woodson 	
-; 
-; @date 		Fall 2016
-;	
-; ==================================================================
-
-
+;***************************************************************
+;* Main code
+;***************************************************************
 Main:
 	OUT    RESETPOS    ; reset odometer in case wheels moved after programming
 	
@@ -139,127 +70,125 @@ Main:
 	; code in that ISR will attempt to control the robot.
 	; If you want to take manual control of the robot,
 	; execute a CLI &B0010 to disable the interrupt.
+	
 
 
-	FindMin:
-	;put sensor data into registers 4,5,6,7
-		IN 		Dist1
-		MOVR 	r4, r0
-		IN 		Dist2
-		MOVR 	r5, r0
-		IN 		Dist3
-		MOVR 	r6, r0
-		IN 		Dist4
-		MOVR 	r7, r0
-		
-		
-		
-		; decide which way to turn. this'll all go into a subroutine later.
-	Turn:
-		MOVR 	r0, r1		; puts r1 in acc
-		ADDI 	-1			; is the min sensor #1?
-		JZERO 	TurnL		; we need to turn left to face it
-		MOVR 	r0, r1		; puts r1 in acc
-		ADDI 	-4			; is the min sensor #4?
-		JZERO 	TurnR		; we need to turn right to face it
-		
-		;turn leftwards (increasing theta) until sensor 3 sees the min
-	TurnL:
-		LOADI 	0
-		STORE 	DVel		; desired forward velocity
-		IN 		Theta		; current angle
-		ADDI 	3			; move 3 at a time
-		OUT 	DTheta		; turn left
-		MOVR 	r0, r2		; bring r2 (min distance) into acc 
-		ADDI 	50			; add some constant for error
-		MOVR 	r3, r0 	; put r2 + some constant into r3
-		IN 		Dist3		; check sensor 3
-		MOVR 	r4, r0		; put it into r4
-		CMP 	r4, r3		; compare reading from sensor 3 with min distance (+ error tolerance)
-		JNEG 	Move		; reading is closer than min distance, we can move forward now
-		JUMP 	TurnL		; reading is further than min distance, keep turning
+Turn45:
+	LOADI  0
+	STORE  DVel       ; desired forward velocity
+	LOADI  45
+	STORE DTheta
+	IN Theta
+	OUT SSEG1
+	ADDI -40
+	JNEG Turn45
+	
+FindMin:
+;put sensor data into registers 4,5,6,7
+	IN Dist1
+	MOVR r4, r0
+	IN Dist2
+	MOVR r5, r0
+	IN Dist3
+	MOVR r6, r0
+	IN Dist4
+	MOVR r7, r0
+	
+	CALL MinimumOfFour
+	;r2 contains minimum value (need to modify subroutine to give index too.) we'll say r1 contains index.
+	
+	
+	; decide which way to turn. this'll all go into a subroutine later.
+Turn:
+	MOVR r0, r1		; puts r1 in acc
+	ADDI -1			; is the min sensor #1?
+	JZERO TurnL		; we need to turn left to face it
+	MOVR r0, r1		; puts r1 in acc
+	ADDI -4			; is the min sensor #4?
+	JZERO TurnR		; we need to turn right to face it
+	
+	;turn leftwards (increasing theta) until sensor 3 sees the min
+TurnL:
+	LOADI 0
+	STORE DVel		; desired forward velocity
+	IN Theta		; current angle
+	ADDI 3			; move 3 at a time
+	OUT DTheta		; turn left
+	MOVR r0, r2		; bring r2 (min distance) into acc 
+	ADDI 50			; add some constant for error
+	MOVR r3, r0 	; put r2 + some constant into r3
+	IN Dist3		; check sensor 3
+	MOVR r4, r0		; put it into r4
+	CMP r4, r3		; compare reading from sensor 3 with min distance (+ error tolerance)
+	JNEG Move		; reading is closer than min distance, we can move forward now
+	JUMP TurnL		; reading is further than min distance, keep turning
 
-		
-		;turn rightwards (decreasing theta) until sensor 2 sees the min
-	TurnR:
-		LOADI 	0
-		STORE 	DVel      ; desired forward velocity
-		IN 		Theta		; current angle
-		ADDI 	-3			; move 3 at a time
-		OUT 	DTheta		; turn right
-		MOVR 	r0, r2		; bring r2 (min distance) into acc 
-		ADDI 	50			; add some constant for error
-		MOVR 	r3, r0 	; put r2 + some constant into r3
-		IN 		Dist2		; check sensor 2
-		MOVR 	r4, r0		; put it into r4
-		CMP 	r4, r3		; compare reading from sensor 2 with min distance (+ error tolerance)
-		JNEG 	Move		; reading is closer than min distance, we can move forward now
-		JUMP 	TurnR		; reading is further than min distance, keep turning
+	
+	;turn rightwards (decreasing theta) until sensor 2 sees the min
+TurnR:
+	LOADI 0
+	STORE DVel      ; desired forward velocity
+	IN Theta		; current angle
+	ADDI -3			; move 3 at a time
+	OUT DTheta		; turn right
+	MOVR r0, r2		; bring r2 (min distance) into acc 
+	ADDI 50			; add some constant for error
+	MOVR r3, r0 	; put r2 + some constant into r3
+	IN Dist2		; check sensor 2
+	MOVR r4, r0		; put it into r4
+	CMP r4, r3		; compare reading from sensor 2 with min distance (+ error tolerance)
+	JNEG Move		; reading is closer than min distance, we can move forward now
+	JUMP TurnR		; reading is further than min distance, keep turning
 
-	Move: 
-		LOADI 	500
-		STORE 	DVel		; move forward fast.
-		LOADI 	200		;put some minimum allowed distance (touching object) into r6
-		MOVR 	r6, r0
-		IN 		Dist2
-		MOVR 	r4, r0		; put in r4
-		IN 		Dist3
-		MOVR 	r5, r0		; put in r5
-		CMP 	r4, r6		; Check to see if sensor 2 sees that the object as been reached
-		JNEG 	Found
-		CMP 	r5, r6		; Check to see if sensor 3 sees that the object has been reached
-		JNEG 	Found
-		CMP 	r4, r5		; r4 still contains the error adjusted min value
-		JNEG 	VeerL		; sensor 2 sees object
-		JPOS 	VeerR		; sensor 3 sees object
-		IN 		Dist2		; sensors 2 and 3 had the object in sight
-		ADDI 	5			; adjust for error
-		MOVR 	r3, r0		; update distance to target
-		JUMP 	Move		; both see object, just go forward
-		
-	VeerL:
-		IN 		Dist2		; sensor 2 had the object in sight
-		ADDI 	50			; adjust for error
-		MOVR 	r3, r0		; update distance to target
-		IN 		Theta		; current angle
-		ADDI 	1			; move 1 at a time
-		OUT 	DTheta		; update angle
-		JUMP 	Move		; continue moving
-		
-	VeerR:
-		IN 		Dist3		; sensor 3 had the object in sight
-		ADDI 	50			; adjust for error
-		MOVR 	r3, r0		; update distance to target
-		IN 		Theta		; current angle
-		ADDI 	-1			; move 1 at a time
-		OUT 	DTheta		; update angle
-		JUMP 	Move		; continue moving
-		
-	Found:
-		LOADI 	0
-		STORE 	DVel		; stop moving
-		CALL 	ReturnHome
-		JUMP 	WaitForUser
-
-
-
-
-
-
-; End Main.asm
-; ==================================================================
-
-; ==================================================================
-; Die
-;
-; @description 		Sometimes it's useful to permanently stop execution.
-; 					This will also catch the execution if it accidentally
-; 					falls through from above.
-; @author 			Kevin Johnson (?)
-;
-; ==================================================================
-
+Move: 
+	LOADI 500
+	STORE DVel		; move forward fast.
+	LOADI 200		;put some minimum allowed distance (touching object) into r6
+	MOVR r6, r0
+	IN Dist2
+	MOVR r4, r0		; put in r4
+	IN Dist3
+	MOVR r5, r0		; put in r5
+	CMP r4, r6		; Check to see if sensor 2 sees that the object as been reached
+	JNEG Found
+	CMP r5, r6		; Check to see if sensor 3 sees that the object has been reached
+	JNEG Found
+	CMP r4, r5		; r4 still contains the error adjusted min value
+	JNEG VeerL		; sensor 2 sees object
+	JPOS VeerR		; sensor 3 sees object
+	IN Dist2		; sensors 2 and 3 had the object in sight
+	ADDI 5			; adjust for error
+	MOVR r3, r0		; update distance to target
+	JUMP Move		; both see object, just go forward
+	
+VeerL:
+	IN Dist2		; sensor 2 had the object in sight
+	ADDI 50			; adjust for error
+	MOVR r3, r0		; update distance to target
+	IN Theta		; current angle
+	ADDI 1			; move 1 at a time
+	OUT DTheta		; update angle
+	JUMP Move		; continue moving
+	
+VeerR:
+	IN Dist3		; sensor 3 had the object in sight
+	ADDI 50			; adjust for error
+	MOVR r3, r0		; update distance to target
+	IN Theta		; current angle
+	ADDI -1			; move 1 at a time
+	OUT DTheta		; update angle
+	JUMP Move		; continue moving
+	
+Found:
+	LOADI 0
+	STORE DVel		; stop moving
+	CALL ReturnHome
+	JUMP WaitForUser
+	
 Die:
+; Sometimes it's useful to permanently stop execution.
+; This will also catch the execution if it accidentally
+; falls through from above.
 	CLI    &B1111       ; disable all interrupts
 	LOAD   Zero         ; Stop everything.
 	OUT    LVELCMD
@@ -272,8 +201,123 @@ Forever:
 	DEAD:  DW &HDEAD    ; Example of a "local" variable
 
 
-; End Die.asm
-; ==================================================================
+; Timer ISR.  Currently just calls the control code
+CTimer_ISR:
+	CALL   ControlMovement
+	RETI   ; return from ISR
+	
+	
+; Control code.  If called repeatedly, this code will attempt
+; to control the robot to face the angle specified in DTheta
+; and match the speed specified in DVel
+DTheta:    DW 0
+DVel:      DW 0
+ControlMovement:
+	; convenient way to get +/-180 angle error is
+	; ((error + 180) % 360 ) - 180
+	IN     THETA
+	SUB    DTheta      ; actual - desired angle
+	CALL   Neg         ; desired - actual angle
+	ADDI   180
+	CALL   Mod360
+	ADDI   -180
+	; A quick-and-dirty way to get a decent velocity value
+	; for turning is to multiply the angular error by 4.
+	SHIFT  2
+	STORE  CMAErr      ; hold temporarily
+
+	
+	; For this basic control method, simply take the
+	; desired forward velocity and add a differential
+	; velocity for each wheel when turning is needed.
+	LOAD   DVel
+	ADD    CMAErr
+	CALL   CapVel      ; ensure velocity is valid
+	OUT    RVELCMD
+	LOAD   CMAErr
+	CALL   Neg         ; left wheel gets negative differential
+	ADD    DVel
+	CALL   CapVel
+	OUT    LVELCMD
+	
+	RETURN
+	CMAErr: DW 0       ; holds angle error velocity
+
+CapVel:
+	; cap velocity values for the motors
+	ADDI    -500
+	JPOS    CapVelHigh
+	ADDI    500
+	ADDI    500
+	JNEG    CapVelLow
+	ADDI    -500
+	RETURN
+CapVelHigh:
+	LOADI   500
+	RETURN
+CapVelLow:
+	LOADI   -500
+	RETURN
+
+;***************************************************************
+;* Subroutines
+;***************************************************************
+;Return Home. Does not use sensors to check for wall, so we need to add that function in.
+
+ReturnHome:
+	IN XPOS		
+	STORE AtanX
+	IN YPOS
+	STORE AtanY
+	CALL Atan2		; get the angle we need to turn to
+	STORE DTheta
+	
+TurnH:
+	IN Theta
+	MOVR r9, r0		; load r9 with theta
+	ADDI -1
+	MOVR r10, r0	; load r10 with desired angle -1 deg
+	ADDI 2
+	MOVR r11, r0	; load r11 with angle +1 deg
+	CMP r9, r10
+	JPOS CheckH		; theta is larger than low range of desired angle
+	JUMP TurnH	
+CheckH:
+	CMP r9, r11		
+	JNEG DriveH		; theta is smaller than high range of desired angle
+	JUMP TurnH
+	
+DriveH:
+	LOADI -500		; reverse at fast speed
+	STORE DVel
+	IN XPOS			; check x pos
+	ADDI -500		; home base
+	JPOS DriveH		; keep driving if not home
+	IN YPOS			; check y pos
+	ADDI -500		; home base
+	JPOS DriveH		; keep driving if not home
+	
+	LOADI 0
+	STORE DVel		; stop
+	return
+	
+
+
+
+;*******************************************************************************
+; Mod360: modulo 360
+; Returns AC%360 in AC
+; Written by Kevin Johnson.  No licence or copyright applied.
+;*******************************************************************************
+Mod360:
+	; easy modulo: subtract 360 until negative then add 360 until not negative
+	JNEG   M360N
+	ADDI   -360
+	JUMP   Mod360
+M360N:
+	ADDI   360
+	JNEG   M360N
+	RETURN
 
 ;*******************************************************************************
 ; Abs: 2's complement absolute value
@@ -282,7 +326,6 @@ Forever:
 ; Returns -AC in AC
 ; Written by Kevin Johnson.  No licence or copyright applied.
 ;*******************************************************************************
-
 Abs:
 	JPOS   Abs_r
 Neg:
@@ -290,10 +333,6 @@ Neg:
 	ADDI   1            ; Add one (i.e. negate number)
 Abs_r:
 	RETURN
-
-	
-; End Abs.asm
-; ==================================================================
 
 ;******************************************************************************;
 ; Atan2: 4-quadrant arctangent calculation                                     ;
@@ -431,134 +470,61 @@ AtanT:      DW 0        ; temporary value
 A2c:        DW 72       ; 72/256=0.28125, with 8 fractional bits
 A2cd:       DW 14668    ; = 180/pi with 8 fractional bits
 
-
-; End Atan2.asm
-; ==================================================================
-
-; ==================================================================
-; Die
-;
-; @description 		This subroutine will get the battery voltage,
-; 					and stop program execution if it is too low.
-; 					SetupI2C must be executed prior to this.
-;
-; @author 			Kevin Johnson (?)
-; ==================================================================
-
-
-BattCheck:
-	CALL   GetBattLvl
-	JZERO  BattCheck   ; A/D hasn't had time to initialize
-	SUB    MinBatt
-	JNEG   DeadBatt
-	ADD    MinBatt     ; get original value back
-	RETURN
-	
-; If the battery is too low, we want to make
-; sure that the user realizes it...
-DeadBatt:
-	LOADI  &H20
-	OUT    BEEP        ; start beep sound
-	CALL   GetBattLvl  ; get the battery level
-	OUT    SSEG1       ; display it everywhere
-	OUT    SSEG2
-	OUT    LCD
-	LOAD   Zero
-	ADDI   -1          ; 0xFFFF
-	OUT    LEDS        ; all LEDs on
-	OUT    XLEDS
-	CALL   Wait1       ; 1 second
-	Load   Zero
-	OUT    BEEP        ; stop beeping
-	LOAD   Zero
-	OUT    LEDS        ; LEDs off
-	OUT    XLEDS
-	CALL   Wait1       ; 1 second
-	JUMP   DeadBatt    ; repeat forever
-	
-; Subroutine to read the A/D (battery voltage)
-; Assumes that SetupI2C has been run
-GetBattLvl:
-	LOAD   I2CRCmd     ; 0x0190 (write 0B, read 1B, addr 0x90)
-	OUT    I2C_CMD     ; to I2C_CMD
-	OUT    I2C_RDY     ; start the communication
-	CALL   BlockI2C    ; wait for it to finish
-	IN     I2C_DATA    ; get the returned data
-	RETURN
-
-	
-; End BattCheck.asm
-; ==================================================================
-
-; ==================================================================
-; CTimer_ISR
-;
-; @brief 		An interrupt to handle robot movement.
-;
-; @author 		Kevin Johnson (?)
-; ==================================================================
-
-; Timer ISR.  Currently just calls the control code
-CTimer_ISR:
-	CALL   ControlMovement
-	RETI   ; return from ISR
-	
-	
-; Control code.  If called repeatedly, this code will attempt
-; to control the robot to face the angle specified in DTheta
-; and match the speed specified in DVel
-DTheta:    DW 0
-DVel:      DW 0
-ControlMovement:
-	; convenient way to get +/-180 angle error is
-	; ((error + 180) % 360 ) - 180
-	IN     THETA
-	SUB    DTheta      ; actual - desired angle
-	CALL   Neg         ; desired - actual angle
-	ADDI   180
-	CALL   Mod360
-	ADDI   -180
-	; A quick-and-dirty way to get a decent velocity value
-	; for turning is to multiply the angular error by 4.
-	SHIFT  2
-	STORE  CMAErr      ; hold temporarily
-
-	
-	; For this basic control method, simply take the
-	; desired forward velocity and add a differential
-	; velocity for each wheel when turning is needed.
-	LOAD   DVel
-	ADD    CMAErr
-	CALL   CapVel      ; ensure velocity is valid
-	OUT    RVELCMD
-	LOAD   CMAErr
-	CALL   Neg         ; left wheel gets negative differential
-	ADD    DVel
-	CALL   CapVel
-	OUT    LVELCMD
-	
-	RETURN
-	CMAErr: DW 0       ; holds angle error velocity
-
-CapVel:
-	; cap velocity values for the motors
-	ADDI    -500
-	JPOS    CapVelHigh
-	ADDI    500
-	ADDI    500
-	JNEG    CapVelLow
-	ADDI    -500
-	RETURN
-CapVelHigh:
-	LOADI   500
-	RETURN
-CapVelLow:
-	LOADI   -500
-	RETURN
-
-	
-; End CTimer_ISR.asm
-; ==================================================================
+;*******************************************************************************
+; Mult16s:  16x16 -> 32-bit signed multiplication
+; Based on Booth's algorithm.
+; Written by Kevin Johnson.  No licence or copyright applied.
+; Warning: does not work with factor B = -32768 (most-negative number).
+; To use:
+; - Store factors in m16sA and m16sB.
+; - Call Mult16s
+; - Result is stored in mres16sH and mres16sL (high and low words).
+;*******************************************************************************
+Mult16s:
+	LOADI  0
+	STORE  m16sc        ; clear carry
+	STORE  mres16sH     ; clear result
+	LOADI  16           ; load 16 to counter
+Mult16s_loop:
+	STORE  mcnt16s      
+	LOAD   m16sc        ; check the carry (from previous iteration)
+	JZERO  Mult16s_noc  ; if no carry, move on
+	LOAD   mres16sH     ; if a carry, 
+	ADD    m16sA        ;  add multiplicand to result H
+	STORE  mres16sH
+Mult16s_noc: ; no carry
+	LOAD   m16sB
+	AND    One          ; check bit 0 of multiplier
+	STORE  m16sc        ; save as next carry
+	JZERO  Mult16s_sh   ; if no carry, move on to shift
+	LOAD   mres16sH     ; if bit 0 set,
+	SUB    m16sA        ;  subtract multiplicand from result H
+	STORE  mres16sH
+Mult16s_sh:
+	LOAD   m16sB
+	SHIFT  -1           ; shift result L >>1
+	AND    c7FFF        ; clear msb
+	STORE  m16sB
+	LOAD   mres16sH     ; load result H
+	SHIFT  15           ; move lsb to msb
+	OR     m16sB
+	STORE  m16sB        ; result L now includes carry out from H
+	LOAD   mres16sH
+	SHIFT  -1
+	STORE  mres16sH     ; shift result H >>1
+	LOAD   mcnt16s
+	ADDI   -1           ; check counter
+	JPOS   Mult16s_loop ; need to iterate 16 times
+	LOAD   m16sB
+	STORE  mres16sL     ; multiplier and result L shared a word
+	RETURN              ; Done
+c7FFF: DW &H7FFF
+m16sA: DW 0 ; multiplicand
+m16sB: DW 0 ; multipler
+m16sc: DW 0 ; carry
+mcnt16s: DW 0 ; counter
+mres16sL: DW 0 ; result low
+mres16sH: DW 0 ; result high
 
 ;*******************************************************************************
 ; Div16s:  16/16 -> 16 R16 signed division
@@ -570,7 +536,6 @@ CapVelLow:
 ; - Result is stored in dres16sQ and dres16sR (quotient and remainder).
 ; Requires Abs subroutine
 ;*******************************************************************************
-
 Div16s:
 	LOADI  0
 	STORE  dres16sR     ; clear remainder result
@@ -634,53 +599,6 @@ d16sC2: DW 0 ; carry value
 dres16sQ: DW 0 ; quotient result
 dres16sR: DW 0 ; remainder result
 
-
-; End Div16s.asm
-; ==================================================================
-
-; ==================================================================
-; I2C
-;
-; @description 		Subroutine to configure the I2C for reading batt voltage
-; 					Only needs to be done once after each reset.
-;
-; @author 			Kevin Johnson (?)
-; ==================================================================
-
-
-SetupI2C:
-	CALL   BlockI2C    ; wait for idle
-	LOAD   I2CWCmd     ; 0x1190 (write 1B, read 1B, addr 0x90)
-	OUT    I2C_CMD     ; to I2C_CMD register
-	LOAD   Zero        ; 0x0000 (A/D port 0, no increment)
-	OUT    I2C_DATA    ; to I2C_DATA register
-	OUT    I2C_RDY     ; start the communication
-	CALL   BlockI2C    ; wait for it to finish
-	RETURN
-	
-; Subroutine to block until I2C device is idle
-BlockI2C:
-	LOAD   Zero
-	STORE  Temp        ; Used to check for timeout
-BI2CL:
-	LOAD   Temp
-	ADDI   1           ; this will result in ~0.1s timeout
-	STORE  Temp
-	JZERO  I2CError    ; Timeout occurred; error
-	IN     I2C_RDY     ; Read busy signal
-	JPOS   BI2CL       ; If not 0, try again
-	RETURN             ; Else return
-I2CError:
-	LOAD   Zero
-	ADDI   &H12C       ; "I2C"
-	OUT    SSEG1
-	OUT    SSEG2       ; display error message
-	JUMP   I2CError
-
-	
-; End I2C.asm
-; ==================================================================
-
 ;*******************************************************************************
 ; L2Estimate:  Pythagorean distance estimation
 ; Written by Kevin Johnson.  No licence or copyright applied.
@@ -693,7 +611,6 @@ I2CError:
 ; Result will be in same units as inputs.
 ; Requires Abs and Mult16s subroutines.
 ;*******************************************************************************
-
 L2Estimate:
 	; take abs() of each value, and find the largest one
 	LOAD   L2X
@@ -747,174 +664,8 @@ L2T1: DW 0
 L2T2: DW 0
 L2T3: DW 0
 
-; End L2Estimate.asm
-; ==================================================================
 
-;*******************************************************************************
-; Mod360: modulo 360
-; Returns AC%360 in AC
-; Written by Kevin Johnson.  No licence or copyright applied.
-;*******************************************************************************
-
-Mod360:
-	; easy modulo: subtract 360 until negative then add 360 until not negative
-	JNEG   M360N
-	ADDI   -360
-	JUMP   Mod360
-M360N:
-	ADDI   360
-	JNEG   M360N
-	RETURN
-
-; End Mod360.asm
-; ==================================================================
-
-
-;*******************************************************************************
-; Mult16s:  16x16 -> 32-bit signed multiplication
-; Based on Booth's algorithm.
-; Written by Kevin Johnson.  No licence or copyright applied.
-; Warning: does not work with factor B = -32768 (most-negative number).
-; To use:
-; - Store factors in m16sA and m16sB.
-; - Call Mult16s
-; - Result is stored in mres16sH and mres16sL (high and low words).
-;*******************************************************************************
-
-Mult16s:
-	LOADI  0
-	STORE  m16sc        ; clear carry
-	STORE  mres16sH     ; clear result
-	LOADI  16           ; load 16 to counter
-Mult16s_loop:
-	STORE  mcnt16s      
-	LOAD   m16sc        ; check the carry (from previous iteration)
-	JZERO  Mult16s_noc  ; if no carry, move on
-	LOAD   mres16sH     ; if a carry, 
-	ADD    m16sA        ;  add multiplicand to result H
-	STORE  mres16sH
-Mult16s_noc: ; no carry
-	LOAD   m16sB
-	AND    One          ; check bit 0 of multiplier
-	STORE  m16sc        ; save as next carry
-	JZERO  Mult16s_sh   ; if no carry, move on to shift
-	LOAD   mres16sH     ; if bit 0 set,
-	SUB    m16sA        ;  subtract multiplicand from result H
-	STORE  mres16sH
-Mult16s_sh:
-	LOAD   m16sB
-	SHIFT  -1           ; shift result L >>1
-	AND    c7FFF        ; clear msb
-	STORE  m16sB
-	LOAD   mres16sH     ; load result H
-	SHIFT  15           ; move lsb to msb
-	OR     m16sB
-	STORE  m16sB        ; result L now includes carry out from H
-	LOAD   mres16sH
-	SHIFT  -1
-	STORE  mres16sH     ; shift result H >>1
-	LOAD   mcnt16s
-	ADDI   -1           ; check counter
-	JPOS   Mult16s_loop ; need to iterate 16 times
-	LOAD   m16sB
-	STORE  mres16sL     ; multiplier and result L shared a word
-	RETURN              ; Done
-c7FFF: DW &H7FFF
-m16sA: DW 0 ; multiplicand
-m16sB: DW 0 ; multipler
-m16sc: DW 0 ; carry
-mcnt16s: DW 0 ; counter
-mres16sL: DW 0 ; result low
-mres16sH: DW 0 ; result high
-
-
-; End Mult16s.asm
-; ==================================================================
-
-
-; ==================================================================
-; ReturnHome
-;
-; @brief 	Return the robot to its initial starting posistion.
-; @author 	George Tang
-;
-; ==================================================================
-
-ReturnHome:
-
-	IN 		XPOS		
-	STORE 	AtanX
-	IN 		YPOS
-	STORE 	AtanY
-	CALL 	Atan2		; get the angle we need to turn to
-	STORE 	DTheta
-	
-TurnH:
-	IN 		Theta
-	MOVR 	r9, r0		; load r9 with theta
-	ADDI 	-1
-	MOVR 	r10, r0		; load r10 with desired angle -1 deg
-	ADDI 	2
-	MOVR 	r11, r0		; load r11 with angle +1 deg
-	CMP 	r9, r10
-	JPOS 	CheckH		; theta is larger than low range of desired angle
-	JUMP 	TurnH	
-CheckH:
-	CMP 	r9, r11		
-	JNEG 	DriveH		; theta is smaller than high range of desired angle
-	JUMP 	TurnH
-	
-DriveH:
-	LOADI 	-500		; reverse at fast speed
-	STORE 	DVel
-	IN 		XPOS		; check x pos
-	ADDI 	-500		; home base
-	JPOS 	DriveH		; keep driving if not home
-	IN 		YPOS		; check y pos
-	ADDI 	-500		; home base
-	JPOS 	DriveH		; keep driving if not home
-	
-	LOADI 	0	
-	STORE 	DVel		; stop
-
-	return
-
-
-; End ReturnHome.asm
-; ==================================================================
-
-; ==================================================================
-; Turn45
-;
-; @brief 	Turn the DE2 Bot 45 degrees.
-; @author 	George Tang
-;
-; ==================================================================
-
-Turn45:
-	LOADI  	0
-	STORE  	DVel       ; desired forward velocity
-	LOADI  	45
-	STORE 	DTheta
-	IN 		Theta
-	OUT 	SSEG1
-	ADDI 	-40
-	JNEG 	Turn45
-	
-	return
-
-
-; End Turn45.asm
-; ==================================================================
-
-; ==================================================================
-; Wait1
-;
-; @brief 		Subroutine to wait (block) for 1 second
-;
-; @author 		Kevin Johnson (?)
-; ==================================================================
-
+; Subroutine to wait (block) for 1 second
 Wait1:
 	OUT    TIMER
 Wloop:
@@ -924,18 +675,83 @@ Wloop:
 	JNEG   Wloop
 	RETURN
 
+; This subroutine will get the battery voltage,
+; and stop program execution if it is too low.
+; SetupI2C must be executed prior to this.
+BattCheck:
+	CALL   GetBattLvl
+	JZERO  BattCheck   ; A/D hasn't had time to initialize
+	SUB    MinBatt
+	JNEG   DeadBatt
+	ADD    MinBatt     ; get original value back
+	RETURN
+; If the battery is too low, we want to make
+; sure that the user realizes it...
+DeadBatt:
+	LOADI  &H20
+	OUT    BEEP        ; start beep sound
+	CALL   GetBattLvl  ; get the battery level
+	OUT    SSEG1       ; display it everywhere
+	OUT    SSEG2
+	OUT    LCD
+	LOAD   Zero
+	ADDI   -1          ; 0xFFFF
+	OUT    LEDS        ; all LEDs on
+	OUT    XLEDS
+	CALL   Wait1       ; 1 second
+	Load   Zero
+	OUT    BEEP        ; stop beeping
+	LOAD   Zero
+	OUT    LEDS        ; LEDs off
+	OUT    XLEDS
+	CALL   Wait1       ; 1 second
+	JUMP   DeadBatt    ; repeat forever
+	
+; Subroutine to read the A/D (battery voltage)
+; Assumes that SetupI2C has been run
+GetBattLvl:
+	LOAD   I2CRCmd     ; 0x0190 (write 0B, read 1B, addr 0x90)
+	OUT    I2C_CMD     ; to I2C_CMD
+	OUT    I2C_RDY     ; start the communication
+	CALL   BlockI2C    ; wait for it to finish
+	IN     I2C_DATA    ; get the returned data
+	RETURN
 
-; End Wait1.asm
-; ==================================================================
+; Subroutine to configure the I2C for reading batt voltage
+; Only needs to be done once after each reset.
+SetupI2C:
+	CALL   BlockI2C    ; wait for idle
+	LOAD   I2CWCmd     ; 0x1190 (write 1B, read 1B, addr 0x90)
+	OUT    I2C_CMD     ; to I2C_CMD register
+	LOAD   Zero        ; 0x0000 (A/D port 0, no increment)
+	OUT    I2C_DATA    ; to I2C_DATA register
+	OUT    I2C_RDY     ; start the communication
+	CALL   BlockI2C    ; wait for it to finish
+	RETURN
+	
+; Subroutine to block until I2C device is idle
+BlockI2C:
+	LOAD   Zero
+	STORE  Temp        ; Used to check for timeout
+BI2CL:
+	LOAD   Temp
+	ADDI   1           ; this will result in ~0.1s timeout
+	STORE  Temp
+	JZERO  I2CError    ; Timeout occurred; error
+	IN     I2C_RDY     ; Read busy signal
+	JPOS   BI2CL       ; If not 0, try again
+	RETURN             ; Else return
+I2CError:
+	LOAD   Zero
+	ADDI   &H12C       ; "I2C"
+	OUT    SSEG1
+	OUT    SSEG2       ; display error message
+	JUMP   I2CError
 
 ;***************************************************************
 ;* Variables
 ;***************************************************************
 Temp:     DW 0 ; "Temp" is not a great name, but can be useful
-
-
-; End Variables.asm
-; ==================================================================
 
 ;***************************************************************
 ;* Constants
@@ -987,13 +803,9 @@ MinBatt:  DW 140       ; 14.0V - minimum safe battery voltage
 I2CWCmd:  DW &H1190    ; write one i2c byte, read one byte, addr 0x90
 I2CRCmd:  DW &H0190    ; write nothing, read one byte, addr 0x90
 
-; End Constants.asm
-; ==================================================================
-
 ;***************************************************************
 ;* IO address space map
 ;***************************************************************
-
 SWITCHES: EQU &H00  ; slide switches
 LEDS:     EQU &H01  ; red LEDs
 TIMER:    EQU &H02  ; timer, usually running at 10 Hz
@@ -1035,35 +847,65 @@ RIN:      EQU &HC8
 LIN:      EQU &HC9
 
 r0: 	EQU 	&H00
-r1: 	EQU 	&H01
-r2: 	EQU 	&H02
-r3: 	EQU 	&H03
-r4: 	EQU 	&H04
-r5: 	EQU 	&H05
-r6: 	EQU 	&H06
-r7: 	EQU 	&H07
-r8: 	EQU 	&H08
-r9: 	EQU 	&H09
-r10: 	EQU 	&H0A
-r11: 	EQU 	&H0B
-r12: 	EQU 	&H0C
-r13: 	EQU 	&H0D
-r14: 	EQU 	&H0E
-r15: 	EQU 	&H0F
-r16: 	EQU 	&H10
-r17: 	EQU 	&H11
-r18: 	EQU 	&H12
-r19: 	EQU 	&H13
-r20: 	EQU 	&H14
-r21: 	EQU 	&H15
-r22: 	EQU 	&H16
-r23: 	EQU 	&H17
-r24: 	EQU 	&H18
-r25: 	EQU 	&H19
-r26: 	EQU 	&H1A
-r27: 	EQU 	&H1B
-r28: 	EQU 	&H1C
-r29: 	EQU 	&H1D
-r30: 	EQU 	&H1E
-r31: 	EQU 	&H1F
 
+r1: 	EQU 	&H01
+
+r2: 	EQU 	&H02
+
+r3: 	EQU 	&H03
+
+r4: 	EQU 	&H04
+
+r5: 	EQU 	&H05
+
+r6: 	EQU 	&H06
+
+r7: 	EQU 	&H07
+
+r8: 	EQU 	&H08
+
+r9: 	EQU 	&H09
+
+r10: 	EQU 	&H0A
+
+r11: 	EQU 	&H0B
+
+r12: 	EQU 	&H0C
+
+r13: 	EQU 	&H0D
+
+r14: 	EQU 	&H0E
+
+r15: 	EQU 	&H0F
+
+r16: 	EQU 	&H10
+
+r17: 	EQU 	&H11
+
+r18: 	EQU 	&H12
+
+r19: 	EQU 	&H13
+
+r20: 	EQU 	&H14
+
+r21: 	EQU 	&H15
+
+r22: 	EQU 	&H16
+
+r23: 	EQU 	&H17
+
+r24: 	EQU 	&H18
+
+r25: 	EQU 	&H19
+
+r26: 	EQU 	&H1A
+
+r27: 	EQU 	&H1B
+
+r28: 	EQU 	&H1C
+
+r29: 	EQU 	&H1D
+
+r30: 	EQU 	&H1E
+
+r31: 	EQU 	&H1F

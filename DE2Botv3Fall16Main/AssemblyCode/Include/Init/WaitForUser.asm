@@ -1,3 +1,9 @@
+; ==================================================================
+; WaitForUser
+;
+; @author 		Kevin Johnson (instructor)	
+; ==================================================================
+
 
 WaitForUser:
 	; This loop will wait for the user to press PB3, to ensure that

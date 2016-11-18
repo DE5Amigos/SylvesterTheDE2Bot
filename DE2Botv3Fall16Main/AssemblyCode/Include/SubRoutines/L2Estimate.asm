@@ -10,6 +10,7 @@
 ; Result will be in same units as inputs.
 ; Requires Abs and Mult16s subroutines.
 ;*******************************************************************************
+
 L2Estimate:
 	; take abs() of each value, and find the largest one
 	LOAD   L2X

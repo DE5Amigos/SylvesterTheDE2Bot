@@ -5,6 +5,7 @@
 ; Returns -AC in AC
 ; Written by Kevin Johnson.  No licence or copyright applied.
 ;*******************************************************************************
+
 Abs:
 	JPOS   Abs_r
 Neg:

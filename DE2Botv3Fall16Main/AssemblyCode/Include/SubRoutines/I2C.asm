@@ -1,6 +1,13 @@
+; ==================================================================
+; I2C
+;
+; @description 		Subroutine to configure the I2C for reading batt voltage
+; 					Only needs to be done once after each reset.
+;
+; @author 			Kevin Johnson (?)
+; ==================================================================
 
-; Subroutine to configure the I2C for reading batt voltage
-; Only needs to be done once after each reset.
+
 SetupI2C:
 	CALL   BlockI2C    ; wait for idle
 	LOAD   I2CWCmd     ; 0x1190 (write 1B, read 1B, addr 0x90)
