@@ -1,33 +1,43 @@
+cls
 
-CLS
 @ECHO OFF
 
-SET INIT_DIR=Include\Init
-SET STATIC_DIR=Include\Static
+set InitDir=Include\Init
+set StaticDir=Include\Static
+set SubRoutines=Include\SubRoutines
 
-SET ROUTINE=Include\SubRoutines
+set Init0=Include\ProgramHeader.asm
+set Init1=%InitDir%\InterruptTable.asm
+set Init2=%InitDir%\Initialization.asm
+set Init3=%InitDir%\WaitForSafety.asm
+set Init4=%InitDir%\WaitForUser.asm
 
-del /f FinalProgram.asm
+set SR0=%SubRoutines%\Abs.asm
+set SR1=%SubRoutines%\Atan2.asm
+set SR2=%SubRoutines%\BattCheck.asm
+set SR3=%SubRoutines%\CTimer_ISR.asm
+set SR4=%SubRoutines%\Div16s.asm
+set SR5=%SubRoutines%\I2C.asm
+set SR6=%SubRoutines%\L2Estimate.asm
+set SR7=%SubRoutines%\Mod360.asm
+set SR8=%SubRoutines%\Mult16s.asm 
+set SR9=%SubRoutines%\Wait1.asm
 
-SET InitFiles=(1 2 3 4)
+set Static0=%StaticDir%\Constants.asm
+set Static1=%StaticDir%\MemoryAddresses.asm
+set Static2=%StaticDir%\Variables.asmd
 
-@ECHO ON
 
 
-FOR /l %A IN %InitFiles% DO (
-	echo %A
-)
-@ECHO OFF
+copy Init0+Init1+Init2+Init3+Init4 InitTemp.asm
+copy SR0+SR1+SR2+SR3+SR4+SR5+SR6+SR7+SR8+SR9 SubRoutineTemp.asm
+copy Static0+Static1+Static2 StaticTemp.asm
 
-copy 	Include\ProgramHeader.asm + %INIT_DIR%\InterruptTable.asm "TempProg1.asm"
-copy 	%INIT_DIR%\Initialization.asm + %INIT_DIR%\WaitForSafety.asm + %INIT_DIR%\WaitForUser.asm "TempProg2.asm"
-copy 	TempProg1.asm + TempProg2.asm "TempProg3.asm"
 
-copy 	%ROUTINE%\Abs.asm + %ROUTINE%\Atan2.asm + %ROUTINE%\BattCheck.asm + %ROUTINE%\Div16s.asm "SubRoutineTemp1.asm"
-copy 	%ROUTINE%\I2C.asm + %ROUTINE%\L2Estimate.asm + %ROUTINE%\Mod360.asm "SubRoutineTemp2.asm"
-copy 	%ROUTINE%\Mult16s.asm + %ROUTINE%\Wait1.asm "SubRoutineTemp3.asm
-copy 	"SubRoutineTemp1.asm" + "SubRoutineTemp2.asm" + "SubRoutineTemp3.asm" "SubRoutineTemp.asm"
+copy InitTemp.asm+SubRoutineTemp.asm+StaticTemp.asm DE5Amigos.asm
 
-copy 	TempProg3.asm + Main.asm + SubRoutineTemp.asm + %STATIC_DIR%\Constants.asm + %STATIC_DIR%\MemoryAddresses.asm  FinalProgram.asm
 
-del /f TempProg1.asm TempProg2.asm TempProg3.asm SubRoutineTemp1.asm SubRoutineTemp2.asm SubRoutineTemp3.asm SubRoutineTemp.asm
+del /f InitTemp.asm SubRoutineTemp.asm StaticTemp.asm
+
+
+

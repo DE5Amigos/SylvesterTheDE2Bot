@@ -31,7 +31,7 @@ inputFiles = [
 ]
 
 
-outputFile = 'FinalProgram.asm'
+outputFile = 'DE5Amigos.asm'
 
 
 def main():
