@@ -70,81 +70,56 @@ Main:
 	; code in that ISR will attempt to control the robot.
 	; If you want to take manual control of the robot,
 	; execute a CLI &B0010 to disable the interrupt.
-	
 
 
-Turn45:
-	LOADI  0
-	STORE  DVel       ; desired forward velocity
-	LOADI  45
-	STORE DTheta
-	IN Theta
-	OUT SSEG1
-	ADDI -40
-	JNEG Turn45
 	
-FindMin:
-;put sensor data into registers 4,5,6,7
-	IN Dist1
-	MOVR r4, r0
-	IN Dist2
-	MOVR r5, r0
-	IN Dist3
+Setup:
+	LOAD Mask2
+	OR Mask3
+	OUT SONAREN
+	LOADI 200		; put some minimum allowed distance (touching object) into r6
 	MOVR r6, r0
-	IN Dist4
-	MOVR r7, r0
+	LOAD TwoFeet		; close to max sensor range
+	ADD TwoFeet
+	ADD TwoFeet
+	MOVR r12, r0
+	MOVR r0, r12
+	OUT LCD
 	
-	CALL MinimumOfFour
-	;r2 contains minimum value (need to modify subroutine to give index too.) we'll say r1 contains index.
-	
-	
-	; decide which way to turn. this'll all go into a subroutine later.
-Turn:
-	MOVR r0, r1		; puts r1 in acc
-	ADDI -1			; is the min sensor #1?
-	JZERO TurnL		; we need to turn left to face it
-	MOVR r0, r1		; puts r1 in acc
-	ADDI -4			; is the min sensor #4?
-	JZERO TurnR		; we need to turn right to face it
-	
-	;turn leftwards (increasing theta) until sensor 3 sees the min
+;put sensor data into registers 4,5,6,7
+	CLI &B0010
 TurnL:
-	LOADI 0
-	STORE DVel		; desired forward velocity
-	IN Theta		; current angle
-	ADDI 3			; move 3 at a time
-	OUT DTheta		; turn left
-	MOVR r0, r2		; bring r2 (min distance) into acc 
-	ADDI 50			; add some constant for error
-	MOVR r3, r0 	; put r2 + some constant into r3
-	IN Dist3		; check sensor 3
-	MOVR r4, r0		; put it into r4
-	CMP r4, r3		; compare reading from sensor 3 with min distance (+ error tolerance)
-	JNEG Move		; reading is closer than min distance, we can move forward now
+	LOADI 140
+	OUT RVELCMD
+	IN THETA
+	ADDI -88
+	JPOS Region2
+	IN Dist2		; check sensor 3
+	MOVR r3, r0
+	OUT SSEG1
+	CMP r0, r12		; compare reading from sensor 3 with max range
+	JNEG MoveP		; reading is closer than min distance, we can move forward now
 	JUMP TurnL		; reading is further than min distance, keep turning
+	
+MoveP:
+	MOVR r0, r3
+	ADDI 200
+	MOVR r3, r0
+	LOADI 140
+	OUT RVELCMD
+	CALL Wait1
+	LOADI 0
+	OUT RVELCMD
+	LOADI  10          ; 10ms * 10 = 0.1s rate, or 10Hz.
+	OUT    CTIMER      ; turn on timer peripheral
+	SEI    &B0010      ; enable interrupts from source 2 (timer)
 
 	
-	;turn rightwards (decreasing theta) until sensor 2 sees the min
-TurnR:
-	LOADI 0
-	STORE DVel      ; desired forward velocity
-	IN Theta		; current angle
-	ADDI -3			; move 3 at a time
-	OUT DTheta		; turn right
-	MOVR r0, r2		; bring r2 (min distance) into acc 
-	ADDI 50			; add some constant for error
-	MOVR r3, r0 	; put r2 + some constant into r3
-	IN Dist2		; check sensor 2
-	MOVR r4, r0		; put it into r4
-	CMP r4, r3		; compare reading from sensor 2 with min distance (+ error tolerance)
-	JNEG Move		; reading is closer than min distance, we can move forward now
-	JUMP TurnR		; reading is further than min distance, keep turning
-
-Move: 
+Move:
+	IN Theta
+	STORE DTheta
 	LOADI 500
 	STORE DVel		; move forward fast.
-	LOADI 200		;put some minimum allowed distance (touching object) into r6
-	MOVR r6, r0
 	IN Dist2
 	MOVR r4, r0		; put in r4
 	IN Dist3
@@ -153,9 +128,10 @@ Move:
 	JNEG Found
 	CMP r5, r6		; Check to see if sensor 3 sees that the object has been reached
 	JNEG Found
-	CMP r4, r5		; r4 still contains the error adjusted min value
+	CMP r4, r3		; r3 still contains the error adjusted min value
 	JNEG VeerL		; sensor 2 sees object
-	JPOS VeerR		; sensor 3 sees object
+	CMP r5, r3		; r3 still contains the error adjusted min value
+	JNEG VeerR		; sensor 2 sees object
 	IN Dist2		; sensors 2 and 3 had the object in sight
 	ADDI 5			; adjust for error
 	MOVR r3, r0		; update distance to target
@@ -163,10 +139,10 @@ Move:
 	
 VeerL:
 	IN Dist2		; sensor 2 had the object in sight
-	ADDI 50			; adjust for error
+	ADDI 55			; adjust for error
 	MOVR r3, r0		; update distance to target
 	IN Theta		; current angle
-	ADDI 1			; move 1 at a time
+	ADDI 3			; move 1 at a time
 	OUT DTheta		; update angle
 	JUMP Move		; continue moving
 	
@@ -175,15 +151,55 @@ VeerR:
 	ADDI 50			; adjust for error
 	MOVR r3, r0		; update distance to target
 	IN Theta		; current angle
-	ADDI -1			; move 1 at a time
+	ADDI -3			; move 1 at a time
 	OUT DTheta		; update angle
 	JUMP Move		; continue moving
 	
 Found:
 	LOADI 0
 	STORE DVel		; stop moving
+	CLI &B0010
 	CALL ReturnHome
 	JUMP WaitForUser
+	
+Region2:
+	LOADI  10          ; 10ms * 10 = 0.1s rate, or 10Hz.
+	OUT    CTIMER      ; turn on timer peripheral
+	SEI    &B0010      ; enable interrupts from source 2 (timer)
+Drive:
+	LOADI 500 
+	STORE DVel
+	LOADI 90
+	STORE DTheta
+	IN Dist2
+	MOVR r4, r0		; put in r4
+	IN Dist3
+	MOVR r5, r0		; put in r5
+	CMP r4, r6		; Check to see if sensor 2 sees that the object as been reached
+	JNEG Found
+	CMP r5, r6		; Check to see if sensor 3 sees that the object has been reached
+	IN YPos
+	ADDI -1500
+	JNEG Drive
+	JUMP TurnR
+	
+TurnR:
+	CLI &B0010
+	LOADI 0
+	OUT RVELCMD
+	LOADI 140
+	OUT LVELCMD
+	IN THETA
+	ADDI -3
+	JNEG Found
+	IN Dist3		; check sensor 3
+	MOVR r3, r0
+	OUT SSEG1
+	CMP r0, r12		; compare reading from sensor 3 with max range
+	JNEG MoveP		; reading is closer than min distance, we can move forward now
+	JUMP TurnR		; reading is further than min distance, keep turning
+	
+	
 	
 Die:
 ; Sometimes it's useful to permanently stop execution.
@@ -265,40 +281,65 @@ CapVelLow:
 ;Return Home. Does not use sensors to check for wall, so we need to add that function in.
 
 ReturnHome:
+	LOAD Mask6
+	OR Mask7
+	OUT SONAREN
 	IN XPOS		
 	STORE AtanX
 	IN YPOS
 	STORE AtanY
 	CALL Atan2		; get the angle we need to turn to
+	MOVR r20, r0
 	STORE DTheta
+	CLI &B0010
+	IN THETA
+	CMP r0, r20
+	JNEG TurnHL
+	JPOS TurnHR
+	JUMP DriveH
 	
-TurnH:
-	IN Theta
-	MOVR r9, r0		; load r9 with theta
-	ADDI -1
-	MOVR r10, r0	; load r10 with desired angle -1 deg
-	ADDI 2
-	MOVR r11, r0	; load r11 with angle +1 deg
-	CMP r9, r10
-	JPOS CheckH		; theta is larger than low range of desired angle
-	JUMP TurnH	
-CheckH:
-	CMP r9, r11		
-	JNEG DriveH		; theta is smaller than high range of desired angle
-	JUMP TurnH
+TurnHL:
+	LOADI 0
+	OUT LVELCMD
+	LOADI 140
+	OUT RVELCMD
+	IN THETA
+	CMP r0, 20
+	JNEG TurnHL
+	JUMP DriveH
+	
+TurnHR:
+	LOADI 0
+	OUT RVELCMD
+	LOADI 140
+	OUT LVELCMD
+	IN THETA
+	CMP r0, 20
+	JPOS TurnHL
+	JUMP DriveH
 	
 DriveH:
 	LOADI -500		; reverse at fast speed
-	STORE DVel
+	OUT RVELCMD
+	OUT LVELCMD
+	IN Dist6
+	MOVR r4, r0		; put in r4
+	IN Dist7
+	MOVR r5, r0		; put in r5
+	CMP r4, r6		; Check to see if sensor 2 sees that the object as been reached
+	JNEG Finish
+	CMP r5, r6		; Check to see if sensor 3 sees that the object has been reached
+	JNEG Finish
 	IN XPOS			; check x pos
-	ADDI -500		; home base
 	JPOS DriveH		; keep driving if not home
 	IN YPOS			; check y pos
-	ADDI -500		; home base
 	JPOS DriveH		; keep driving if not home
 	
+Finish:
 	LOADI 0
-	STORE DVel		; stop
+	OUT SONAREN
+	OUT RVELCMD
+	OUT LVELCMD
 	return
 	
 
@@ -733,7 +774,7 @@ Wait1:
 Wloop:
 	IN     TIMER
 	OUT    XLEDS       ; User-feedback that a pause is occurring.
-	ADDI   -10         ; 1 second at 10Hz.
+	ADDI   -5         ; 1 second at 10Hz.
 	JNEG   Wloop
 	RETURN
 
