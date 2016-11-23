@@ -77,40 +77,70 @@ Setup:
 	LOAD Mask2
 	OR Mask3
 	OUT SONAREN		; enable front two sensors
-	LOADI 230		; put some minimum allowed distance (touching object) into r6
+	LOADI 400
+	MOVR r19, r0
+	LOADI 180		; put some minimum allowed distance (touching object) into r6
 	MOVR r6, r0
 	LOAD TwoFeet	; close to max sensor range (6 feet)
 	ADD TwoFeet
 	ADD TwoFeet
 	MOVR r12, r0	; max sensor distance to consider
-	
 	CLI &B0010		; disable interrupts
+	LOADI -50
+	OUT LVELCMD		; left wheel speed
+	LOADI 140
+	OUT RVELCMD		; right wheel speed
+	CALL Wait1
+	LOADI -50
+	OUT LVELCMD		; left wheel speed
+	LOADI 140
+	OUT RVELCMD		; right wheel speed
+	CALL Wait1
+	CALL Wait1
+	
 TurnL:
-	LOADI -10
+	LOADI -50
 	OUT LVELCMD		; left wheel speed
 	LOADI 140
 	OUT RVELCMD		; right wheel speed
 	IN THETA
-	ADDI -82		; check if angle ~90 degrees (error-adjusted)
+	ADDI -3
+	MOVR r21, r0
+	IN THETA
+	ADDI -85		; check if angle ~90 degrees (error-adjusted)
 	JPOS Region2	; if you get to 90 degrees, move to region 2
-	IN Dist2		; check sensor 3
-	MOVR r3, r0		; put reading into r3
+	IN Dist3		; check sensor 3
+	MOVR r3, r0
 	CMP r0, r12		; compare reading from sensor 3 with max range
-	JNEG MoveP		; reading is closer than min distance, we can move forward now
+	JNEG TurnB		; reading is closer than min distance, we can move forward now
 	JUMP TurnL		; reading is further than min distance, keep turning
 	
+	; Turn back a bit, to compensate for overturning due to sensor 3's position
+TurnB:
+	LOADI -50
+	OUT RVELCMD		; right wheel speed
+	LOADI 140
+	OUT LVELCMD		; left wheel speed
+	IN Theta
+	CMP r0, r21
+	JPOS TurnB
+	JUMP MoveP
+	
+TurnB2:
+	LOADI -50
+	OUT LVELCMD		; right wheel speed
+	LOADI 140
+	OUT RVELCMD		; left wheel speed
+	IN Theta
+	CMP r0, r21
+	JNEG TurnB2
+	JUMP MoveP
 	
 	; some prep stuff before driving
 MoveP:
 	MOVR r0, r3
 	ADDI 200
 	MOVR r3, r0		; take distance to target and add some distance
-	
-	LOADI 140		; keep turning a bit (may remove)
-	OUT RVELCMD
-	CALL Wait1	
-	LOADI 0
-	OUT RVELCMD
 	
 	LOADI 10		; 10ms * 10 = 0.1s rate, or 10Hz.
 	OUT CTIMER		; turn on timer peripheral
@@ -131,31 +161,13 @@ Move:
 	CMP r5, r6		; Check to see if sensor 3 sees that the object has been reached
 	JNEG Found
 	CMP r4, r3		; r3 still contains the error adjusted min value
-	JNEG VeerL		; sensor 2 sees object
+	JNEG Move		; sensor 2 sees object
 	CMP r5, r3		; r3 still contains the error adjusted min value
-	JNEG VeerR		; sensor 2 sees object
+	JNEG Move		; sensor 2 sees object
 	IN Dist2		; sensors 2 and 3 had the object in sight
 	ADDI 20			; adjust for error
 	MOVR r3, r0		; update distance to target
 	JUMP Move		; both see object, just go forward
-	
-VeerL:
-	IN Dist2		; sensor 2 had the object in sight
-	ADDI 20			; adjust for error
-	MOVR r3, r0		; update distance to target
-	IN Theta		; current angle
-	ADDI 10			; move 1 at a time
-	STORE DTheta	; update angle
-	JUMP Move		; continue moving
-	
-VeerR:
-	IN Dist3		; sensor 3 had the object in sight
-	ADDI 20			; adjust for error
-	MOVR r3, r0		; update distance to target
-	IN Theta		; current angle
-	ADDI -10		; move 1 at a time
-	STORE DTheta	; update angle
-	JUMP Move		; continue moving
 	
 Found:
 	LOADI 0
@@ -165,11 +177,19 @@ Found:
 	JUMP WaitForUser
 	
 Region2:
+	LOADI 0
+	OUT RVelCmd
+	OUT LVelCmd
+	Call Wait1
 	LOADI  10          ; 10ms * 10 = 0.1s rate, or 10Hz.
 	OUT    CTIMER      ; turn on timer peripheral
 	SEI    &B0010      ; enable interrupts from source 2 (timer)
 	
 Drive:
+	LOAD Mask2
+	OR Mask3
+	OR Mask5
+	OUT SONAREN		; enable front two sensors
 	LOADI 500 
 	STORE DVel
 	LOADI 90
@@ -181,30 +201,123 @@ Drive:
 	CMP r4, r6		; Check to see if sensor 2 sees that an object as been reached
 	JNEG Found
 	CMP r5, r6		; Check to see if sensor 3 sees that an object has been reached
+	JNEG Found
+	IN Dist5
+	MOVR r17, r0
+	CMP r17, r12
+	JNEG Turn90
+
 	IN YPos
-	SUB TwoFeet
-	SUB TwoFeet		; check to see if we've gone the correct distance upwards
+	SUB FiveFeet
 	JNEG Drive		; if not, keep going
-	JUMP TurnR		; if so, start scanning 2nd region
+	JUMP Turn2		; if so, start scanning 2nd region
 	
+Turn2:
+	LOADI -50
+	OUT RVELCMD		; left wheel speed
+	LOADI 140
+	OUT LVELCMD		; right wheel speed
+	CALL Wait1
+	LOADI -50
+	OUT RVELCMD		; left wheel speed
+	LOADI 140
+	OUT LVELCMD		; right wheel speed
+	CALL Wait1
+	CALL Wait1
 TurnR:
 	CLI &B0010		; disable interrupts
-	LOADI -10
+	LOADI -50
 	OUT RVELCMD		; right wheel speed
 	LOADI 140
 	OUT LVELCMD		; left wheel speed
 	IN THETA
+	ADDI 3
+	MOVR r21, r0
+	IN THETA
 	ADDI -3			; if we hit ~0 degrees, go home
-	JNEG Found
-	IN Dist2		; check sensor 3
+	JNEG Region3
+	IN Dist2		; check sensor 2
 	MOVR r3, r0
-	OUT SSEG1
 	CMP r0, r12		; compare reading from sensor 3 with max range
-	JNEG MoveP		; reading is closer than min distance, we can move forward now
+	JNEG TurnB2		; reading is closer than min distance, we can move forward now
 	JUMP TurnR		; reading is further than min distance, keep turning
 	
+Turn90:
+	CLI &B0010		; disable interrupts
+	LOADI -50
+	OUT RVELCMD		; right wheel speed
+	LOADI 140
+	OUT LVELCMD		; left wheel speed
+	IN THETA
+	ADDI -10		; when we hit ~0 degrees, go
+	JNEG Turn90E
+	JUMP Turn90
+	
+Turn90E:
+	LOADI 0
+	OUT RVELCMD
+	OUT LVELCMD
+	CALL Wait1
+	JUMP MoveP
+
+Region3:
+	LOADI 0
+	OUT RVelCmd
+	OUT LVelCmd
+	Call Wait1
+	LOADI  10          ; 10ms * 10 = 0.1s rate, or 10Hz.
+	OUT    CTIMER      ; turn on timer peripheral
+	SEI    &B0010      ; enable interrupts from source 2 (timer)
+Drive2:
+	LOAD Mask2
+	OR Mask3
+	OR Mask0
+	OUT SONAREN		; enable front two sensors
+	LOADI 500 
+	STORE DVel
+	LOADI 0
+	STORE DTheta
+	IN Dist2
+	MOVR r4, r0		; put in r4
+	IN Dist3
+	MOVR r5, r0		; put in r5
+	CMP r4, r6		; Check to see if sensor 2 sees that an object as been reached
+	JNEG Found
+	CMP r5, r6		; Check to see if sensor 3 sees that an object has been reached
+	JNEG Found
+	IN Dist0
+	CMP r0, r12
+	JNEG Turn90LA
+	IN XPos
+	SUB FiveFeet
+	JNEG Drive2		; if not, keep going
+	JUMP Found		; if so, just go home
 	
 	
+Turn90LA:
+	CLI &B0010		; disable interrupts
+	LOADI -50
+	OUT LVELCMD		; right wheel speed
+	LOADI 140
+	OUT RVELCMD		; left wheel speed
+	Call Wait1
+	LOADI -50
+	OUT LVELCMD		; right wheel speed
+	LOADI 140
+	OUT RVELCMD		; left wheel speed
+	Call Wait1
+	Call Wait1
+	
+Turn90LB:
+	LOADI -50
+	OUT LVELCMD		; right wheel speed
+	LOADI 140
+	OUT RVELCMD		; left wheel speed
+	IN THETA
+	ADDI -85		; if we hit ~0 degrees, go home
+	JNEG Turn90LB
+	JUMP Turn90E
+
 Die:
 ; Sometimes it's useful to permanently stop execution.
 ; This will also catch the execution if it accidentally
@@ -294,29 +407,74 @@ DriveH1:
 	OUT RVELCMD
 	OUT LVELCMD
 	IN Dist7		; Sensor 7
-	MOVR r5, r0		; put in r5
-	CMP r5, r6		; Check to see if sensor 7 sees that the wall has been reached
+	CMP r0, r19		; Check to see if sensor 7 sees that the wall has been reached
 	JNEG TurnH		; If it has, turn to 90 degrees
+	IN Dist6
+	CMP r0, r19
+	JNEG TurnH2
+	IN XPos
+	ADDI 50
+	JNEG TurnH
+	IN YPos
+	ADDI 50
+	JNEG TurnH2
 	JUMP DriveH1
 	
 TurnH:
 	LOADI 140
 	OUT RVelCmd
-	LOADI -10
+	LOADI -50
 	OUT LVelCmd
 	IN THETA
-	ADDI -82		; check if angle ~90 degrees (error-adjusted)
-	JPOS DriveH2	; if you get to 90 degrees, start driving again
+	ADDI -85		; check if angle ~90 degrees (error-adjusted)
+	JPOS DriveH2	; when you get to 90 degrees, start driving again
+	JUMP TurnH
+	
+TurnH2:
+	LOADI 140
+	OUT LVelCmd
+	LOADI -50
+	OUT RVelCmd
+	IN THETA
+	ADDI -5		; check if angle ~90 degrees (error-adjusted)
+	JNEG DriveH3	; when you get to 90 degrees, start driving again
+	JUMP TurnH2
 	
 DriveH2:
+	LOADI 0
+	OUT LVELCMD
+	OUT RVELCMD
+	Call Wait1
+DriveH2L:
+	LOADI -500		; reverse at fast speed
+	OUT RVELCMD
+	OUT LVELCMD
+	IN Dist6		; Sensor 6
+	MOVR r5, r0		; put in r5
+	CMP r5, r19		; Check to see if sensor 6 sees that the wall has been reached
+	JNEG Finish		; If it has, finish
+	IN YPos
+	ADDI 50
+	JNEG Finish
+	JUMP DriveH2L
+
+DriveH3:
+	LOADI 0
+	OUT LVELCMD
+	OUT RVELCMD
+	Call Wait1	
+DriveH3L:
 	LOADI -500		; reverse at fast speed
 	OUT RVELCMD
 	OUT LVELCMD
 	IN Dist7		; Sensor 7
 	MOVR r5, r0		; put in r5
-	CMP r5, r6		; Check to see if sensor 7 sees that the wall has been reached
+	CMP r5, r19		; Check to see if sensor 6 sees that the wall has been reached
 	JNEG Finish		; If it has, finish
-	JUMP DriveH2	
+	IN XPos
+	ADDI 50
+	JNEG Finish
+	JUMP DriveH3L
 	
 Finish:
 	LOADI 0
@@ -325,69 +483,6 @@ Finish:
 	OUT LVELCMD
 	return
 	
-
-
-
-
-;Finds the minimum of two numbers
-MinimumOfTwo:
-
-	
-
-	movr 	r2, r4 				; Assume r4 is min to start with.
-	loadi	1
-	movr	r1, r0
-	
-
-
-	cmp 	r4, r5				; Is r4 < r5
-
-	jneg 	MinimumOfTwoEnd 	; Jump to end if r4 is the min.
-
-	movr 	r2, r5 				; Set r2 to r5 since that is min (or equal).
-	loadi	2
-	movr	r1, r0
-
-
-
-MinimumOfTwoEnd:
-
-	return
-	
-;finds the minimum of four numbers
-MinimumOfFour:
-
-	
-
-	; r2 = the minimum register.
-
-
-
-	call 	MinimumOfTwo 	; Will place the min{r4, r5} in r2.
-
-
-
-	movr 	r4, r2 			; Move the new min to the input r4.
-
-	movr 	r5, r6 			; Move the next test value to input r5.
-
-
-
-	call 	MinimumOfTwo 	; Will place min{r4, r5, r6} into r2.
-
-
-
-	movr 	r4, r2
-
-	movr 	r5, r7 
-
-
-
-	call 	MinimumOfTwo 	; r2 will contain proper return value.
-
-	
-
-	return				; Finished
 
 
 ;*******************************************************************************
@@ -757,7 +852,7 @@ Wait1:
 Wloop:
 	IN     TIMER
 	OUT    XLEDS       ; User-feedback that a pause is occurring.
-	ADDI   -5         ; 1 second at 10Hz.
+	ADDI   -3         ; 1 second at 10Hz.
 	JNEG   Wloop
 	RETURN
 
@@ -874,6 +969,7 @@ LowNibl:  DW &HF       ; 0000 0000 0000 1111
 OneMeter: DW 961       ; ~1m in 1.04mm units
 HalfMeter: DW 481      ; ~0.5m in 1.04mm units
 TwoFeet:  DW 586       ; ~2ft in 1.04mm units
+FiveFeet: DW 1465
 Deg90:    DW 90        ; 90 degrees in odometer units
 Deg180:   DW 180       ; 180
 Deg270:   DW 270       ; 270
